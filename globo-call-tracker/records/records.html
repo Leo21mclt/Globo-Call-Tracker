@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>All Records</title>
+    <link rel="stylesheet" href="records.css" /></head>
+  <body class="records-page">
+    <div class="shell">
+      <aside class="rail">
+        <div class="rail-logo" aria-hidden="true">CT</div>
+        <button class="tab rail-btn active" data-tab="recordsTab" data-href="../records.html" aria-label="Records">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm8 1.5V9h4.5" />
+          </svg>
+        </button>
+        <button class="tab rail-btn" data-tab="settingsTab" data-href="../settings.html" aria-label="Settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19.4 13.5a7.7 7.7 0 0 0 .1-1.5 7.7 7.7 0 0 0-.1-1.5l2.1-1.6a.8.8 0 0 0 .2-1l-2-3.5a.8.8 0 0 0-1-.3l-2.5 1a7.2 7.2 0 0 0-2.6-1.5l-.4-2.7A.8.8 0 0 0 12.4 1h-4a.8.8 0 0 0-.8.7l-.4 2.7a7.2 7.2 0 0 0-2.6 1.5l-2.5-1a.8.8 0 0 0-1 .3l-2 3.5a.8.8 0 0 0 .2 1l2.1 1.6a7.7 7.7 0 0 0-.1 1.5c0 .5 0 1 .1 1.5l-2.1 1.6a.8.8 0 0 0-.2 1l2 3.5a.8.8 0 0 0 1 .3l2.5-1a7.2 7.2 0 0 0 2.6 1.5l.4 2.7a.8.8 0 0 0 .8.7h4a.8.8 0 0 0 .8-.7l.4-2.7a7.2 7.2 0 0 0 2.6-1.5l2.5 1a.8.8 0 0 0 1-.3l2-3.5a.8.8 0 0 0-.2-1zM10.4 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" />
+          </svg>
+        </button>
+        <button class="tab rail-btn" data-tab="shiftsTab" data-href="../shifts.html" aria-label="Shifts">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a2 2 0 0 1 2 2v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2h1V3a1 1 0 0 1 1-1zm12 8H5v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8z" />
+          </svg>
+        </button>
+      </aside>
+      <div class="page">
+        <div class="app">
+      <header>
+        <h1>All Records</h1>
+        <div class="header-right">
+          <div id="recordCount" class="muted">0 calls</div>
+          <div class="month-nav">
+            <button id="prevMonth" class="nav-btn">◀</button>
+            <span id="currentMonthLabel"></span>
+            <button id="nextMonth" class="nav-btn">▶</button>
+          </div>
+          <div class="header-actions">
+            <button id="exportCsv" class="btn">Export CSV</button>
+            <button id="clearLogs" class="btn ghost">Clear Logs</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="tab-panels">
+        <section id="recordsTab" class="panel active records-layout">
+          <section class="main">
+            <div class="records-list">
+              <div id="recordsLoading" class="empty">Loading your calls...</div>
+              <div id="recordsEmpty" class="empty" style="display: none;">No calls logged yet.</div>
+              <div id="recordsContainer" class="records"></div>
+            </div>
+          </section>
+          <aside class="sidebar">
+            <div class="card earnings">
+              <h2>Earnings</h2>
+              <div class="calc-row">
+                <span class="calc-label">Rate (audio)</span>
+                <span id="rateAudio" class="calc-value">$0.00</span>
+              </div>
+              <div class="calc-row">
+                <span class="calc-label">Rate (video)</span>
+                <span id="rateVideo" class="calc-value">$0.00</span>
+              </div>
+              <div class="calc-row">
+                <span class="calc-label">Total billable minutes</span>
+                <span id="totalBillableMinutes" class="calc-value">0</span>
+              </div>
+              <div class="calc-row">
+                <span class="calc-label">Total real minutes</span>
+                <span id="totalRealMinutes" class="calc-value">0</span>
+              </div>
+              <div class="calc-row">
+                <span class="calc-label">Lost time (audio)</span>
+                <span id="lostAudioMinutes" class="calc-value">0 min 00 sec</span>
+              </div>
+              <div class="calc-row">
+                <span class="calc-label">Lost time (video)</span>
+                <span id="lostVideoMinutes" class="calc-value">0 min 00 sec</span>
+              </div>
+              <div class="calc-row total">
+                <span class="calc-label">Estimated earnings</span>
+                <span id="totalEarnings" class="calc-value">$0.00</span>
+              </div>
+              <p class="calc-note">Set your rates in Settings tab.</p>
+            </div>
+          </aside>
+        </section>
+
+        <section id="settingsTab" class="panel">
+          <div class="card settings-card">
+            <h2>Settings</h2>
+            <div class="form-row">
+              <label>Retention days</label>
+              <input id="retentionDays" type="number" min="1" />
+            </div>
+            <div class="form-row">
+              <label>Rate per billable minute (audio)</label>
+              <input id="ratePerMinuteAudio" type="number" min="0" step="0.01" />
+            </div>
+            <div class="form-row">
+              <label>Rate per billable minute (video)</label>
+              <input id="ratePerMinuteVideo" type="number" min="0" step="0.01" />
+            </div>
+            <div class="form-row">
+              <label>Default shift hourly rate</label>
+              <input id="shiftHourlyRate" type="number" min="0" step="0.01" />
+            </div>
+            <div class="form-actions">
+              <button id="saveSettings">Save settings</button>
+              <button id="resetSettings">Reset</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="shiftsTab" class="panel">
+          <div class="card weekly-card">
+            <div class="week-header">
+              <h2>Weekly Shifts</h2>
+              <div class="week-nav">
+                <button id="prevWeek" class="nav-btn">◀</button>
+                <span id="currentWeekLabel"></span>
+                <button id="nextWeek" class="nav-btn">▶</button>
+                <button id="thisWeek" class="nav-btn">This Week</button>
+              </div>
+            </div>
+            <div id="weeklyGrid" class="week-grid"></div>
+            <div class="form-actions">
+              <button id="saveWeekly">Save Week</button>
+            </div>
+          </div>
+          <div class="card shifts-card">
+            <h2>Shifts</h2>
+            <div id="shiftsList"></div>
+          </div>
+        </section>
+      </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="records.js"></script>
+  </body>
+</html>
