@@ -989,10 +989,86 @@ function bindEvents() {
     resetBtn.addEventListener('click', async () => {
       await chrome.storage.local.set({ [STORAGE_KEYS.settings]: DEFAULT_SETTINGS });
       await loadAndRender();
+      showSaveBanner('Settings reset to default');
     });
   }
 
+  const checkUpdatesBtn = document.getElementById('checkUpdatesBtn');
+  if (checkUpdatesBtn) {
+    checkUpdatesBtn.addEventListener('click', async () => {
+      try {
+        checkUpdatesBtn.textContent = 'Checking...';
+        checkUpdatesBtn.disabled = true;
 
+        const manifest = chrome.runtime.getManifest();
+        const currentVersion = manifest.version;
+        const response = await fetch("https://api.github.com/repos/Leo21mclt/Globo-Call-Tracker/releases/latest");
+        
+        if (!response.ok) throw new Error("Could not fetch updates.");
+        const release = await response.json();
+        let latestVersion = release.tag_name;
+        if (latestVersion.startsWith("v") || latestVersion.startsWith("V")) {
+          latestVersion = latestVersion.substring(1);
+        }
+
+        let isNewer = false;
+        if (latestVersion && latestVersion !== currentVersion) {
+          const v1 = currentVersion.split('.').map(Number);
+          const v2 = latestVersion.split('.').map(Number);
+          for (let i = 0; i < Math.max(v1.length, v2.length); i++) {
+            const n1 = v1[i] || 0;
+            const n2 = v2[i] || 0;
+            if (n2 > n1) { isNewer = true; break; }
+            if (n2 < n1) { break; }
+          }
+        }
+
+        if (isNewer) {
+          const modal = document.createElement('div');
+          modal.style.position = 'fixed';
+          modal.style.top = '0'; modal.style.left = '0'; modal.style.width = '100%'; modal.style.height = '100%';
+          modal.style.backgroundColor = 'rgba(0,0,0,0.6)';
+          modal.style.display = 'flex'; modal.style.alignItems = 'center'; modal.style.justifyContent = 'center';
+          modal.style.zIndex = '99999';
+          modal.innerHTML = `
+            <div style="background: var(--surface); color: var(--ink); padding: 24px; border-radius: var(--radius); width: 450px; max-width: 90%; box-shadow: var(--shadow);">
+              <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 1.25rem;">New Version Found (v${latestVersion})</h2>
+              <div style="text-align: left; font-size: 14px; line-height: 1.5; margin-bottom: 24px;">
+                <p style="margin-top: 0;">A new version of Globo Call Tracker is available!</p>
+                <ol style="margin: 0; padding-left: 20px;">
+                  <li>Make sure you are NOT currently on an active call.</li>
+                  <li>Click the download button below.</li>
+                  <li>Unzip the downloaded folder.</li>
+                  <li>Copy the contents and paste them into your CURRENT installation folder, choosing "Replace files in the destination" when asked.</li>
+                  <li>Go to <code>chrome://extensions/</code> in Chrome.</li>
+                  <li>Find "Globo Call Tracker" and click the circular "Reload" arrow icon.</li>
+                  <li>Refresh any open Globo Dashboard tabs to apply the new code.</li>
+                </ol>
+                <p style="margin-bottom: 0;"><em>Your records will be perfectly preserved!</em></p>
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button id="updateModalCancel" class="btn" style="background: var(--stroke); color: var(--ink);">Close</button>
+                <button id="updateModalConfirm" class="btn" style="background: var(--accent); color: #fff;">Go to Download Page</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+          document.getElementById('updateModalCancel').onclick = () => modal.remove();
+          document.getElementById('updateModalConfirm').onclick = () => {
+            modal.remove();
+            window.open(release.html_url, '_blank');
+          };
+        } else {
+          alert('Up to Date! You are running the latest version of Globo Call Tracker.');
+        }
+      } catch (err) {
+        alert('Error: Could not check for updates. Please try again later.');
+      } finally {
+        checkUpdatesBtn.textContent = 'Check for Updates';
+        checkUpdatesBtn.disabled = false;
+      }
+    });
+  }
   const prevWeekBtn = document.getElementById('prevWeek');
   if (prevWeekBtn) {
     prevWeekBtn.addEventListener('click', async () => {

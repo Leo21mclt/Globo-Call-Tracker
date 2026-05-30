@@ -333,6 +333,16 @@ async function init() {
   await refreshFromStorage();
   startActiveTimer();
   setSettingsOpen(false);
+
+  // Check for updates
+  chrome.storage.local.get("updateAvailable", (data) => {
+    if (data.updateAvailable && data.updateAvailable.version) {
+      const banner = document.getElementById("updateBanner");
+      const link = document.getElementById("updateLink");
+      banner.style.display = "block";
+      banner.innerHTML = `Version ${data.updateAvailable.version} is available! <a href="${data.updateAvailable.url}" target="_blank">Download here</a>`;
+    }
+  });
 }
 
 init();

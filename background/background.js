@@ -68,3 +68,60 @@ function sendMessageWithRetry(tabId, message, maxRetries = 10) {
     setTimeout(trySend, 1000); 
   });
 }
+
+// UPDATE CHECKER
+const REPO_OWNER = "Leo21mclt";
+const REPO_NAME = "Globo-Call-Tracker";
+
+async function checkForUpdates() {
+  try {
+    const manifest = chrome.runtime.getManifest();
+    const currentVersion = manifest.version;
+
+    const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`);
+    if (!response.ok) return;
+
+    const release = await response.json();
+    let latestVersion = release.tag_name;
+    if (latestVersion.startsWith("v") || latestVersion.startsWith("V")) {
+      latestVersion = latestVersion.substring(1);
+    }
+    
+    // Simple version comparison (assumes format x.y.z)
+    if (latestVersion && latestVersion !== currentVersion) {
+      const v1 = currentVersion.split('.').map(Number);
+      const v2 = latestVersion.split('.').map(Number);
+      
+      let isNewer = false;
+      for (let i = 0; i < Math.max(v1.length, v2.length); i++) {
+        const n1 = v1[i] || 0;
+        const n2 = v2[i] || 0;
+        if (n2 > n1) { isNewer = true; break; }
+        if (n2 < n1) { break; }
+      }
+
+      if (isNewer) {
+        chrome.storage.local.set({ 
+          updateAvailable: {
+            version: release.tag_name,
+            url: release.html_url
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Update check failed", err);
+  }
+}
+
+chrome.runtime.onStartup.addListener(checkForUpdates);
+chrome.runtime.onInstalled.addListener(() => {
+  checkForUpdates();
+  chrome.alarms.create("checkUpdateAlarm", { periodInMinutes: 1440 }); // Check daily
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "checkUpdateAlarm") {
+    checkForUpdates();
+  }
+});

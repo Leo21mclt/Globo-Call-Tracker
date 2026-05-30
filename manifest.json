@@ -3,10 +3,11 @@
   "name": "Globo Call Tracker",
   "version": "1.0.0",
   "description": "Auto-tracks Globo calls and logs billable minutes.",
-  "permissions": ["storage", "tabs", "scripting"],
+  "permissions": ["storage", "tabs", "scripting", "alarms"],
   "host_permissions": [
     "https://www.globohq.com/*",
-    "https://globo.na.deputy.com/*"
+    "https://globo.na.deputy.com/*",
+    "https://api.github.com/*"
   ],
   "action": {
     "default_title": "Call Tracker",

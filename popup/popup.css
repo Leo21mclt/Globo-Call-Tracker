@@ -362,3 +362,16 @@ html.dark-mode body, body.dark-mode {
   --badge-bg: #11332a;
   --badge-text: #4db39d;
 }
+
+.update-banner {
+  background: var(--accent);
+  color: #fff;
+  text-align: center;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: bold;
+}
+.update-banner a {
+  color: #fff;
+  text-decoration: underline;
+}
