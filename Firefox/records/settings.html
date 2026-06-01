@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Settings</title>
+    <link rel="stylesheet" href="records.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>Settings</h1>
+        <div class="header-right">
+          <div id="recordCount" class="muted">0 calls</div>
+          <div class="month-nav">
+            <button id="prevMonth" class="nav-btn">◀</button>
+            <span id="currentMonthLabel"></span>
+            <button id="nextMonth" class="nav-btn">▶</button>
+          </div>
+        </div>
+      </header>
+
+      <nav class="tabs">
+        <button class="tab" data-tab="recordsTab">Records</button>
+        <button class="tab active" data-tab="settingsTab">Settings</button>
+        <button class="tab" data-tab="shiftsTab">Shifts</button>
+      </nav>
+
+      <div class="tab-panels">
+        <section id="recordsTab" class="panel layout">
+          <section class="main">
+            <div id="recordsEmpty" class="empty">No calls logged yet.</div>
+            <div id="recordsContainer" class="records"></div>
+          </section>
+          <aside class="sidebar">
+            <div class="card earnings">
+              <h2>Earnings</h2>
+              <div class="calc-row">
+                <span class="calc-label">Rate (audio)</span>
+                <span id="rateAudio" class="calc-value">$0.00</span>
+              </div>
+              <div class="calc-row">
+                <span class="calc-label">Rate (video)</span>
+                <span id="rateVideo" class="calc-value">$0.00</span>
+              </div>
+              <div class="calc-row">
+                <span class="calc-label">Total billable minutes</span>
+                <span id="totalBillableMinutes" class="calc-value">0</span>
+              </div>
+              <div class="calc-row total">
+                <span class="calc-label">Estimated earnings</span>
+                <span id="totalEarnings" class="calc-value">$0.00</span>
+              </div>
+              <p class="calc-note">Set your rates in Settings tab.</p>
+            </div>
+          </aside>
+        </section>
+
+        <section id="settingsTab" class="panel active">
+          <div class="card settings-card">
+            <h2>Settings</h2>
+            <div class="form-row">
+              <label>Retention days</label>
+              <input id="retentionDays" type="number" min="1" />
+            </div>
+            <div class="form-row">
+              <label>Rate per billable minute (audio)</label>
+              <input id="ratePerMinuteAudio" type="number" min="0" step="0.01" />
+            </div>
+            <div class="form-row">
+              <label>Rate per billable minute (video)</label>
+              <input id="ratePerMinuteVideo" type="number" min="0" step="0.01" />
+            </div>
+            <div class="form-row">
+              <label>Default shift hourly rate</label>
+              <input id="shiftHourlyRate" type="number" min="0" step="0.01" />
+            </div>
+            <div class="form-actions">
+              <button id="saveSettings">Save settings</button>
+              <button id="resetSettings">Reset</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="shiftsTab" class="panel">
+          <div class="card shifts-card">
+            <h2>Shifts</h2>
+            <div id="shiftsList"></div>
+            <hr />
+            <h3>Create Shift</h3>
+            <div class="form-row">
+              <label>Name</label>
+              <input id="shiftName" type="text" />
+            </div>
+            <div class="form-row">
+              <label>Start time (HH:MM)</label>
+              <input id="shiftStartTime" type="time" />
+            </div>
+            <div class="form-row">
+              <label>End time (HH:MM)</label>
+              <input id="shiftEndTime" type="time" />
+            </div>
+            <div class="form-row">
+              <label>Recurrence</label>
+              <select id="shiftRecurrence">
+                <option value="none">One-off</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <div class="form-actions">
+              <button id="addShift">Add shift</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <script src="records.js"></script>
+  </body>
+</html>

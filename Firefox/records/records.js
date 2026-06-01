@@ -1,3 +1,22 @@
+function safeSetHTML(el, htmlString, contextTag) {
+  if (contextTag === 'svg') {
+    const doc = new DOMParser().parseFromString(htmlString, 'text/html');
+    el.replaceChildren(...doc.body.childNodes);
+    return;
+  }
+  if (contextTag === 'tr') {
+    const doc = new DOMParser().parseFromString('<table><tbody><tr>' + htmlString + '</tr></tbody></table>', 'text/html');
+    el.replaceChildren(...doc.querySelector('tr').childNodes);
+    return;
+  }
+  if (contextTag === 'table') {
+    const doc = new DOMParser().parseFromString('<table>' + htmlString + '</table>', 'text/html');
+    el.replaceChildren(...doc.querySelector('table').childNodes);
+    return;
+  }
+  const doc = new DOMParser().parseFromString(htmlString, 'text/html');
+  el.replaceChildren(...doc.body.childNodes);
+}
 if (localStorage.getItem('darkMode') === 'true') {
   document.documentElement.classList.add('dark-mode');
 }
@@ -73,7 +92,7 @@ function createTypeBadge(callType) {
   else badge.title = "Audio call";
 
   const icon = document.createElement("span");
-  icon.innerHTML = getTypeIconSvg(callType);
+  safeSetHTML(icon, getTypeIconSvg(callType), 'svg');
   badge.append(icon);
   return badge;
 }
@@ -541,7 +560,7 @@ function renderRecords(logs, settings, shifts, weeklyShifts) {
   if (lostAudioEl) lostAudioEl.textContent = formatMinutesAndSeconds(lostAudioSeconds);
   if (lostVideoEl) lostVideoEl.textContent = formatMinutesAndSeconds(lostVideoSeconds);
 
-  if (container) container.innerHTML = "";
+  if (container) container.replaceChildren();
   if (countEl) countEl.textContent = `${filtered.length} call${filtered.length === 1 ? "" : "s"}`;
 
   if (!filtered.length) {
@@ -579,7 +598,7 @@ function renderRecords(logs, settings, shifts, weeklyShifts) {
     summary.append(title, meta);
 
     const table = document.createElement("table");
-    table.innerHTML = `
+    safeSetHTML(table, `
       <thead>
         <tr>
           <th>Start</th>
@@ -595,7 +614,7 @@ function renderRecords(logs, settings, shifts, weeklyShifts) {
         </tr>
       </thead>
       <tbody></tbody>
-    `;
+    `, 'table');
 
     const tbody = table.querySelector("tbody");
 
@@ -1026,7 +1045,7 @@ function bindEvents() {
           modal.style.backgroundColor = 'rgba(0,0,0,0.6)';
           modal.style.display = 'flex'; modal.style.alignItems = 'center'; modal.style.justifyContent = 'center';
           modal.style.zIndex = '99999';
-          modal.innerHTML = `
+          safeSetHTML(modal, `
             <div style="background: var(--surface); color: var(--ink); padding: 24px; border-radius: var(--radius); width: 450px; max-width: 90%; box-shadow: var(--shadow);">
               <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 1.25rem;">New Version Found (v${latestVersion})</h2>
               <div style="text-align: left; font-size: 14px; line-height: 1.5; margin-bottom: 24px;">
@@ -1047,7 +1066,7 @@ function bindEvents() {
                 <button id="updateModalConfirm" class="btn" style="background: var(--accent); color: #fff;">Go to Download Page</button>
               </div>
             </div>
-          `;
+          `);
           document.body.appendChild(modal);
           document.getElementById('updateModalCancel').onclick = () => modal.remove();
           document.getElementById('updateModalConfirm').onclick = () => {
@@ -1181,9 +1200,9 @@ function renderSyncPreview() {
   const content = document.getElementById('syncPreviewContent');
   if (!modal || !content) return;
   
-  content.innerHTML = '';
+  content.replaceChildren();
   if (pendingDeputySync.length === 0) {
-    content.innerHTML = '<p class="muted">No shifts found to sync.</p>';
+    safeSetHTML(content, '<p class="muted">No shifts found to sync.</p>');
   } else {
     // Group by weekKey
     const byWeek = {};
@@ -1201,7 +1220,7 @@ function renderSyncPreview() {
       
       const weekEl = document.createElement('div');
       weekEl.className = 'preview-week';
-      weekEl.innerHTML = `<h3>Week of ${weekLabel}</h3><div class="week-shifts"></div>`;
+      safeSetHTML(weekEl, `<h3>Week of ${weekLabel}</h3><div class="week-shifts"></div>`);
       const shiftsContainer = weekEl.querySelector('.week-shifts');
 
       weekShifts.sort((a, b) => a.date.localeCompare(b.date)).forEach(shift => {
@@ -1209,13 +1228,13 @@ function renderSyncPreview() {
         const dayLabel = formatDayLabel(d);
         const row = document.createElement('div');
         row.className = 'week-shift-row';
-        row.innerHTML = `
+        safeSetHTML(row, `
           <div class="week-day" style="padding-bottom: 4px;">${dayLabel} <span class="badge-deputy">Deputy</span></div>
           <div style="display: flex; gap: 8px;">
             <input type="time" data-sync-index="${shift.index}" data-sync-field="start" value="${shift.startTime}" />
             <input type="time" data-sync-index="${shift.index}" data-sync-field="end" value="${shift.endTime}" />
           </div>
-        `;
+        `);
         shiftsContainer.appendChild(row);
       });
       content.appendChild(weekEl);
@@ -1312,7 +1331,7 @@ function renderWeeklyEditor(weeklyShifts) {
   }
   const weekKey = state.currentWeekStartKey;
   const weekData = normalizeWeekData(weeklyShifts[weekKey]);
-  grid.innerHTML = '';
+  grid.replaceChildren();
 
   const startDate = parseWeekStartKey(weekKey);
   WEEKDAY_KEYS.forEach((dayKey, idx) => {
@@ -1341,11 +1360,11 @@ function renderWeeklyEditor(weeklyShifts) {
         }).join('')
       : '<div class="week-empty" style="text-align:center; padding:8px;">Unscheduled</div>';
       
-    block.innerHTML = `
+    safeSetHTML(block, `
       <div class="week-day">${label}</div>
       <div class="week-shifts">${shiftsHtml}</div>
       <button type="button" class="week-add" data-week-add="${dayKey}">+ Add shift</button>
-    `;
+    `);
     grid.appendChild(block);
   });
 
@@ -1407,7 +1426,7 @@ function renderWeeklyEditor(weeklyShifts) {
 function renderShiftsList(shifts, weeklyShifts) {
   const container = document.getElementById('shiftsList');
   if (!container) return;
-  container.innerHTML = '';
+  container.replaceChildren();
   
   let combinedShifts = [...(shifts || [])];
   const now = new Date();
@@ -1463,7 +1482,7 @@ function renderShiftsList(shifts, weeklyShifts) {
   });
 
   if (!combinedShifts.length) {
-    container.innerHTML = '<div class="empty">No shifts defined.</div>';
+    safeSetHTML(container, '<div class="empty">No shifts defined.</div>');
     return;
   }
   combinedShifts.forEach((s) => {
@@ -1477,7 +1496,7 @@ function renderShiftsList(shifts, weeklyShifts) {
     el.setAttribute('data-start', s.startTime || '');
     el.setAttribute('data-end', s.endTime || '');
     el.setAttribute('data-date', dateLabel);
-    el.innerHTML = `
+    safeSetHTML(el, `
       <div class="shift-meta">
         <strong>${s.name}</strong>
         <span class="muted">${dateLabel}</span>
@@ -1485,7 +1504,7 @@ function renderShiftsList(shifts, weeklyShifts) {
       <div class="shift-time">
         ${format12Hour(s.startTime)} - ${format12Hour(s.endTime)}
       </div>
-    `;
+    `);
     
     // Open modal on click
     el.addEventListener('click', () => {
@@ -1600,3 +1619,4 @@ function bindEditModalEvents() {
 }
 
 init();
+
