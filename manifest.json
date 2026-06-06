@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Globo Call Tracker",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Auto-tracks Globo calls and logs billable minutes.",
   "permissions": ["storage", "tabs", "scripting", "alarms"],
   "host_permissions": [

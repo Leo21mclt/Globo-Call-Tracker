@@ -17,9 +17,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return;
     }
 
-    // Remember the currently visible start date
-    const currentFirstAvatar = document.querySelector('.my-week-day__avatars .js-myWeek-avatar');
-    const oldDate = currentFirstAvatar ? currentFirstAvatar.getAttribute('data-my-week-day') : null;
+    // Remember the currently visible start date via the hidden date picker
+    const datePicker = document.getElementById('my-week-date-picker');
+    const oldDate = datePicker ? datePicker.value : null;
 
     nextBtn.click();
 
@@ -32,7 +32,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 });
 
-function waitForDOMUpdate(oldDate, maxWaitMs = 5000) {
+function waitForDOMUpdate(oldDate, maxWaitMs = 10000) {
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
     let loaderSeen = false;
@@ -53,19 +53,11 @@ function waitForDOMUpdate(oldDate, maxWaitMs = 5000) {
         clearInterval(interval);
         resolve();
       } else {
-        const currentFirstAvatar = document.querySelector('.my-week-day__avatars .js-myWeek-avatar');
-        if (currentFirstAvatar) {
-          const newDate = currentFirstAvatar.getAttribute('data-my-week-day');
-          if (oldDate && newDate !== oldDate) {
-            clearInterval(interval);
-            resolve();
-            return;
-          }
-        }
-        // Fallback: If 1000ms passed with no loader and no date change detected (e.g. empty week), assume done
-        if (Date.now() - startTime > 1000) {
+        const datePicker = document.getElementById('my-week-date-picker');
+        if (datePicker && oldDate && datePicker.value !== oldDate) {
           clearInterval(interval);
           resolve();
+          return;
         }
       }
     }, 100);
@@ -156,8 +148,8 @@ function doScrape() {
     const d = String(colDate.getUTCDate()).padStart(2, '0');
     const dateStr = `${y}-${m}-${d}`;
 
-    // Find all shift items (roster or timesheet) inside this day. Exclude open shifts.
-    const shiftEls = dayEl.querySelectorAll('.js-roster-item, .js-timesheet-item');
+    // Find all shift items inside this day using the article wrapper. Exclude open shifts.
+    const shiftEls = dayEl.querySelectorAll('article.m-rosterCard-article');
     
     shiftEls.forEach(shiftEl => {
       // It must not be an open shift
@@ -180,7 +172,18 @@ function doScrape() {
     });
   });
 
-  return results;
+  // Deduplicate shifts in case the DOM still yields multiple copies
+  const uniqueResults = [];
+  const seen = new Set();
+  for (const r of results) {
+    const key = `${r.date}|${r.startTime}|${r.endTime}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueResults.push(r);
+    }
+  }
+
+  return uniqueResults;
 }
 
 function parseShiftTimeStr(str) {
