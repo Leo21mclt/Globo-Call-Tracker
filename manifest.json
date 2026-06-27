@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Globo Call Tracker",
-  "version": "1.0.2",
+  "version": "2.0.6",
   "description": "Auto-tracks Globo calls and logs billable minutes.",
-  "permissions": ["storage", "tabs", "scripting", "alarms"],
+  "permissions": ["storage", "tabs", "alarms", "unlimitedStorage"],
   "host_permissions": [
-    "https://www.globohq.com/*",
-    "https://globo.na.deputy.com/*",
-    "https://api.github.com/*"
+    "https://*.globohq.com/*",
+    "https://globohq.com/*",
+    "https://*.deputy.com/*"
   ],
   "action": {
     "default_title": "Call Tracker",
@@ -24,28 +24,29 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.globohq.com/*"],
-      "js": ["content/video-accept-spy.js"],
+      "matches": ["https://*.globohq.com/*", "https://globohq.com/*"],
+      "js": ["content/video-bridge.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["https://www.globohq.com/*"],
+      "matches": ["https://*.globohq.com/*", "https://globohq.com/*"],
+      "css": ["content/dark-mode.css"],
       "js": ["content/content-script.js"],
       "run_at": "document_start",
       "world": "ISOLATED"
     },
     {
       "matches": ["https://*.deputy.com/*"],
-      "js": ["content/deputy-scraper.js"],
+      "js": ["content/deputy-sync.js"],
       "run_at": "document_idle",
       "world": "ISOLATED"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["content/video-accept-spy.js"],
-      "matches": ["https://www.globohq.com/*"]
+      "resources": ["content/video-bridge.js", "content/dark-mode.css"],
+      "matches": ["https://*.globohq.com/*", "https://globohq.com/*"]
     }
   ]
 }

@@ -1,4 +1,9 @@
-(function(){})("Globo Call Tracker content script loaded");
+const DEBUG = false;
+function logDebug(...args) {
+  if (DEBUG) {
+    console.log('[Tracker]', ...args);
+  }
+}
 
 const SELECTORS = {
   panel: "#ti_panel",
@@ -17,9 +22,9 @@ const TEXT_LABELS = {
   standby: "Please stand by for your next call"
 };
 
-const VIDEO_ACCEPT_MESSAGE = "globo-video-accept";
+const VIDEO_ACCEPT_MESSAGE = "globo-video-signal";
 
-let videoSpyInjected = false;
+let videoListenerActive = false;
 
 const latestVideoCompanyById = {};
 const videoAcceptQueue = [];
@@ -36,11 +41,11 @@ const DEFAULT_SETTINGS = {
   retentionDays: 90
 };
 
-function injectVideoAcceptSpy() {
-  if (videoSpyInjected) return;
-  videoSpyInjected = true;
-  document.documentElement.setAttribute("data-globo-call-tracker", "1");
-  (function(){})("Video accept spy running via MAIN world");
+function initVideoCallTracking() {
+  if (videoListenerActive) return;
+  videoListenerActive = true;
+  document.documentElement.setAttribute("data-gh-status", "1");
+  logDebug("Video receiver active");
 }
 
 function isInvalidatedError(error) {
@@ -74,7 +79,7 @@ async function safeStorageSet(items) {
 
 function stripLabel(text, label) {
   if (!text) return "";
-  return text.replace(label, "").trim();
+  return text.replace(/^[^:]+:\s*/, "").trim();
 }
 
 function getCallInfoFromDom() {
@@ -97,7 +102,7 @@ function isDomCallActive() {
 
 function debugDomState() {
   try {
-    (function(){})('DOM check:', {
+    logDebug('DOM check:', {
       audioActive: !!document.querySelector(SELECTORS.callTable) || !!document.querySelector(SELECTORS.endCallBtn),
       videoActive: !!document.querySelector(SELECTORS.videoApp) || !!document.querySelector(SELECTORS.videoCallInfo),
       selectors: SELECTORS
@@ -120,7 +125,7 @@ function isVideoCallActive() {
 function getAudioCallInfoFromDom() {
   const clientCell = document.querySelector(SELECTORS.clientCell);
   const callIdCell = document.querySelector(SELECTORS.callIdCell);
-  (function(){})('getAudioCallInfoFromDom selectors', { clientCellExists: !!clientCell, callIdCellExists: !!callIdCell });
+  logDebug('getAudioCallInfoFromDom selectors', { clientCellExists: !!clientCell, callIdCellExists: !!callIdCell });
   if (!clientCell || !callIdCell) return null;
 
   const clientText = stripLabel(clientCell.textContent || "", TEXT_LABELS.client);
@@ -137,7 +142,7 @@ function getAudioCallInfoFromDom() {
 
 function getVideoCallInfoFromDom() {
   const callIdSpan = document.querySelector(SELECTORS.videoCallId);
-  (function(){})('getVideoCallInfoFromDom selector', { callIdSpanExists: !!callIdSpan });
+  logDebug('getVideoCallInfoFromDom selector', { callIdSpanExists: !!callIdSpan });
   const callIdText = callIdSpan ? (callIdSpan.textContent || "").trim() : "";
   const resolvedCallId = callIdText;
   const companyName = getLatestVideoCompanyForCall(resolvedCallId);
@@ -193,7 +198,7 @@ function recordVideoAcceptPayload(payload) {
     videoAcceptQueue.length = MAX_VIDEO_ACCEPT_CACHE;
   }
 
-  (function(){})('Video accept payload received', {
+  logDebug('Video accept payload received', {
     companyName: payload.companyName,
     uniqueId,
     numericId,
@@ -252,7 +257,9 @@ function installVideoAcceptListener() {
       startAssignmentCall(payload);
     }
   });
+}
 
+function installBodyClickListener() {
   document.body.addEventListener('click', async (e) => {
     const btn = e.target.closest('.swal2-confirm.btn-success');
     if (btn && btn.textContent.trim().toLowerCase() === "complete") {
@@ -296,7 +303,7 @@ async function startAssignmentCall(payload) {
   };
 
   await safeStorageSet({ [STORAGE_KEYS.activeCall]: nextActive });
-  (function(){})('Started active assignment', nextActive);
+  logDebug('Started active assignment', nextActive);
 }
 
 async function updateActiveCallFromVideoAccept({ companyName, callId }) {
@@ -312,7 +319,7 @@ async function updateActiveCallFromVideoAccept({ companyName, callId }) {
     const nextActive = { ...activeCall, callId, callKey: `video:${callId}` };
     if (companyName) nextActive.client = companyName;
     await safeStorageSet({ [STORAGE_KEYS.activeCall]: nextActive });
-    (function(){})('Video call ID assigned from payload', { callId, companyName });
+    logDebug('Video call ID assigned from payload', { callId, companyName });
     if (companyName) consumeVideoAcceptPayload({ uniqueId: callId });
     return;
   }
@@ -323,7 +330,7 @@ async function updateActiveCallFromVideoAccept({ companyName, callId }) {
     if (matchedName && (activeCall.client === "Video Call" || activeCall.client === "Unknown")) {
       const nextActive = { ...activeCall, client: matchedName };
       await safeStorageSet({ [STORAGE_KEYS.activeCall]: nextActive });
-      (function(){})('Video client matched by queued payload', { callId: activeCall.callId, matchedName });
+      logDebug('Video client matched by queued payload', { callId: activeCall.callId, matchedName });
       consumeVideoAcceptPayload({ uniqueId: activeCall.callId });
     }
     return;
@@ -339,7 +346,7 @@ async function updateActiveCallFromVideoAccept({ companyName, callId }) {
 
   if (changed) {
     await safeStorageSet({ [STORAGE_KEYS.activeCall]: nextActive });
-    (function(){})('Updated active video call from accept payload', nextActive);
+    logDebug('Updated active video call from accept payload', nextActive);
     consumeVideoAcceptPayload({ uniqueId: callId });
   }
 }
@@ -458,7 +465,7 @@ async function startCallIfNeeded(source, exactEndTimeMs = null) {
   await safeStorageSet({
     [STORAGE_KEYS.activeCall]: nextActive
   });
-  (function(){})('Started active call', nextActive);
+  logDebug('Started active call', nextActive);
 }
 
 async function endCallIfActive(source, exactEndTimeMs = null) {
@@ -494,13 +501,51 @@ async function endCallIfActive(source, exactEndTimeMs = null) {
 
   const logs = Array.isArray(data[STORAGE_KEYS.callLogs]) ? data[STORAGE_KEYS.callLogs] : [];
   const settings = await getSettings();
-  const nextLogs = pruneLogs([logEntry, ...logs], settings.retentionDays);
+
+  let finalLogs = [];
+  const existingLogIndex = logs.findIndex(l => l.callId === logEntry.callId && l.client === logEntry.client && l.callId !== "Unknown");
+
+  if (existingLogIndex !== -1) {
+    const existingLog = logs[existingLogIndex];
+    const minStartMs = Math.min(existingLog.startTimeMs, logEntry.startTimeMs);
+    const maxEndMs = Math.max(existingLog.endTimeMs, logEntry.endTimeMs);
+    const mergedDurationSeconds = Math.max(0, Math.floor((maxEndMs - minStartMs) / 1000));
+    const mergedBillableSeconds = calcBillableSeconds(minStartMs, maxEndMs);
+    
+    const mergedLog = {
+      ...existingLog,
+      startTimeMs: minStartMs,
+      startTimeIso: new Date(minStartMs).toISOString(),
+      startRoundedMs: roundDownToMinute(minStartMs),
+      endTimeMs: maxEndMs,
+      endTimeIso: new Date(maxEndMs).toISOString(),
+      endRoundedMs: roundDownToMinute(maxEndMs),
+      durationSeconds: mergedDurationSeconds,
+      billableSeconds: mergedBillableSeconds,
+      billableMinutes: Math.floor(mergedBillableSeconds / 60),
+      realMinutes: Number((mergedDurationSeconds / 60).toFixed(2)),
+      lostSeconds: Math.max(0, mergedDurationSeconds - mergedBillableSeconds)
+    };
+    
+    finalLogs = [...logs];
+    finalLogs[existingLogIndex] = mergedLog;
+    
+    // Always move the merged log to the top since it's the most recent interaction
+    if (existingLogIndex !== 0) {
+      finalLogs.splice(existingLogIndex, 1);
+      finalLogs.unshift(mergedLog);
+    }
+  } else {
+    finalLogs = [logEntry, ...logs];
+  }
+
+  const nextLogs = pruneLogs(finalLogs, settings.retentionDays);
 
   await safeStorageSet({
     [STORAGE_KEYS.activeCall]: { active: false },
     [STORAGE_KEYS.callLogs]: nextLogs
   });
-  (function(){})('Ended active call', logEntry);
+  logDebug('Ended active call', logEntry);
 }
 
 let endCallTimeoutId = null;
@@ -597,13 +642,46 @@ let autoAnswerEnabled = false;
 let autoAnswerDelaySeconds = 5;
 let autoAnswerTimerId = null;
 
+let keepLoggedInEnabled = false;
+let keepLoggedInTimerId = null;
+
+let globoDarkModeEnabled = false;
+
+function applyGloboDarkMode(enabled) {
+  if (enabled) {
+    document.documentElement.classList.add('globo-dark-mode-active');
+  } else {
+    document.documentElement.classList.remove('globo-dark-mode-active');
+  }
+}
+
+function handleKeepLoggedIn() {
+  if (keepLoggedInEnabled) {
+    // Ping immediately. Periodic ping is handled reliably by background alarms.
+    fetch('/session_timeout/keep_current_session_alive.js', { headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(()=>{});
+  }
+}
+
 async function syncSettings() {
   if (isContextInvalidated) return;
   const data = await safeStorageGet([STORAGE_KEYS.settings]);
   const settings = data[STORAGE_KEYS.settings] || {};
   autoAnswerEnabled = settings.autoAnswerEnabled === true;
   autoAnswerDelaySeconds = typeof settings.autoAnswerDelaySeconds === 'number' ? settings.autoAnswerDelaySeconds : 5;
+  
+  keepLoggedInEnabled = settings.keepLoggedIn === true;
+  handleKeepLoggedIn();
+  
+  globoDarkModeEnabled = settings.globoDarkMode === true;
+  applyGloboDarkMode(globoDarkModeEnabled);
 }
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "TOGGLE_GLOBO_DARK_MODE") {
+    globoDarkModeEnabled = message.enabled;
+    applyGloboDarkMode(globoDarkModeEnabled);
+  }
+});
 
 function handleAutoAnswerState() {
   if (!autoAnswerEnabled) return;
@@ -622,7 +700,7 @@ function handleAutoAnswerState() {
         if (secondsLeft <= 0) {
           clearInterval(autoAnswerTimerId);
           autoAnswerTimerId = null;
-          (function(){})('Auto-answering call via simulated click');
+          logDebug('Auto-answering call via simulated click');
           acceptBtn.click();
         } else {
           acceptBtn.innerText = `${originalText} (${secondsLeft}s)`;
@@ -662,13 +740,17 @@ function setupSettingsListener() {
   });
 }
 
-async function init() {
-  (function(){})('Globo Call Tracker content script initializing');
-  injectVideoAcceptSpy();
+async function earlyInit() {
+  logDebug('Globo Call Tracker early init');
+  initVideoCallTracking();
   installVideoAcceptListener();
   
   await syncSettings();
   setupSettingsListener();
+}
+
+async function domInit() {
+  installBodyClickListener();
   setupAutoAnswerObserver();
   
   if (isContextInvalidated) return;
@@ -682,8 +764,10 @@ async function init() {
   startPollingFallback();
 }
 
+earlyInit();
+
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init, { once: true });
+  document.addEventListener("DOMContentLoaded", domInit, { once: true });
 } else {
-  init();
+  domInit();
 }

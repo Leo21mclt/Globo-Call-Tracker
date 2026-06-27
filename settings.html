@@ -56,9 +56,26 @@
             </div>
             
             <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border-color);"/>
-            <h2>Appearance</h2>
+            <h2>GloboHQ Dashboard Enhancements</h2>
+            <div class="form-row" style="align-items: center; gap: 10px; justify-content: flex-start; margin-bottom: 12px;">
+              <label for="keepLoggedIn">Keep Me Logged In (Anti-Idle heartbeat)</label>
+              <label class="toggle-switch">
+                <input id="keepLoggedIn" type="checkbox" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
             <div class="form-row" style="align-items: center; gap: 10px; justify-content: flex-start;">
-              <label for="darkMode">Dark Mode</label>
+              <label for="globoDarkMode">Globo Dashboard Dark Mode</label>
+              <label class="toggle-switch">
+                <input id="globoDarkMode" type="checkbox" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border-color);"/>
+            <h2>Extension Appearance</h2>
+            <div class="form-row" style="align-items: center; gap: 10px; justify-content: flex-start;">
+              <label for="darkMode">Extension Dark Mode</label>
               <label class="toggle-switch">
                 <input id="darkMode" type="checkbox" />
                 <span class="toggle-slider"></span>
@@ -79,11 +96,6 @@
               <input id="autoAnswerDelaySeconds" type="number" min="0" />
             </div>
 
-            <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border-color);"/>
-            <h2>Updates</h2>
-            <div class="form-row" style="align-items: center; justify-content: flex-start;">
-              <button id="checkUpdatesBtn" class="btn" style="background: var(--primary-color); color: #fff;">Check for Updates</button>
-            </div>
 
             <div class="form-actions">
               <button id="saveSettings">Save settings</button>

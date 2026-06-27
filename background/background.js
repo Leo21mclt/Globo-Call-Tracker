@@ -16,13 +16,13 @@ async function runDeputySync() {
     await waitForTabComplete(tab.id);
 
     // 3. Send message to scrape current week
-    const currentWeekRes = await sendMessageWithRetry(tab.id, { action: 'SCRAPE_DEPUTY' });
+    const currentWeekRes = await sendMessageWithRetry(tab.id, { action: 'EXTRACT_DEPUTY_DATA' });
     if (!currentWeekRes || !currentWeekRes.success) {
       throw new Error(currentWeekRes?.error || "Failed to scrape current week");
     }
     
     // 4. Send message to click next week and scrape
-    const nextWeekRes = await chrome.tabs.sendMessage(tab.id, { action: 'DEPUTY_NEXT_WEEK' });
+    const nextWeekRes = await sendMessageWithRetry(tab.id, { action: 'DEPUTY_NEXT_WEEK' });
     if (!nextWeekRes || !nextWeekRes.success) {
       throw new Error(nextWeekRes?.error || "Failed to scrape next week");
     }
@@ -36,14 +36,52 @@ async function runDeputySync() {
   }
 }
 
-function waitForTabComplete(tabId) {
-  return new Promise(resolve => {
-    chrome.tabs.onUpdated.addListener(function listener(tId, info) {
-      if (tId === tabId && info.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
+function waitForTabComplete(tabId, inactivityTimeoutMs = 30000, maxTotalTimeoutMs = 120000) {
+  return new Promise((resolve, reject) => {
+    let inactivityTimer;
+    let maxTotalTimer;
+    
+    function cleanUp() {
+      chrome.tabs.onUpdated.removeListener(updateListener);
+      chrome.tabs.onRemoved.removeListener(removeListener);
+      clearTimeout(inactivityTimer);
+      clearTimeout(maxTotalTimer);
+    }
+    
+    function resetInactivityTimer() {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        cleanUp();
+        reject(new Error("Loading timed out due to inactivity (no responses from tab for 30 seconds)"));
+      }, inactivityTimeoutMs);
+    }
+    
+    function updateListener(tId, info) {
+      if (tId === tabId) {
+        resetInactivityTimer();
+        if (info.status === 'complete') {
+          cleanUp();
+          resolve();
+        }
       }
-    });
+    }
+    
+    function removeListener(tId) {
+      if (tId === tabId) {
+        cleanUp();
+        reject(new Error("Tab was closed by the user or browser"));
+      }
+    }
+    
+    chrome.tabs.onUpdated.addListener(updateListener);
+    chrome.tabs.onRemoved.addListener(removeListener);
+    
+    // Start timers
+    resetInactivityTimer();
+    maxTotalTimer = setTimeout(() => {
+      cleanUp();
+      reject(new Error("Sync timed out: Deputy page failed to load within 2 minutes"));
+    }, maxTotalTimeoutMs);
   });
 }
 
@@ -69,59 +107,50 @@ function sendMessageWithRetry(tabId, message, maxRetries = 10) {
   });
 }
 
-// UPDATE CHECKER
-const REPO_OWNER = "Leo21mclt";
-const REPO_NAME = "Globo-Call-Tracker";
-
-async function checkForUpdates() {
-  try {
-    const manifest = chrome.runtime.getManifest();
-    const currentVersion = manifest.version;
-
-    const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`);
-    if (!response.ok) return;
-
-    const release = await response.json();
-    let latestVersion = release.tag_name;
-    if (latestVersion.startsWith("v") || latestVersion.startsWith("V")) {
-      latestVersion = latestVersion.substring(1);
-    }
-    
-    // Simple version comparison (assumes format x.y.z)
-    if (latestVersion && latestVersion !== currentVersion) {
-      const v1 = currentVersion.split('.').map(Number);
-      const v2 = latestVersion.split('.').map(Number);
-      
-      let isNewer = false;
-      for (let i = 0; i < Math.max(v1.length, v2.length); i++) {
-        const n1 = v1[i] || 0;
-        const n2 = v2[i] || 0;
-        if (n2 > n1) { isNewer = true; break; }
-        if (n2 < n1) { break; }
+// Keep Alive Heartbeat Alarms Logic
+async function syncKeepAliveAlarm() {
+  const data = await chrome.storage.local.get(['settings']);
+  const settings = data.settings || {};
+  const enabled = settings.keepLoggedIn === true;
+  
+  if (enabled) {
+    chrome.alarms.get('keepAliveAlarm', (alarm) => {
+      if (!alarm) {
+        chrome.alarms.create('keepAliveAlarm', { periodInMinutes: 5 });
       }
-
-      if (isNewer) {
-        chrome.storage.local.set({ 
-          updateAvailable: {
-            version: release.tag_name,
-            url: release.html_url
-          }
-        });
-      }
-    }
-  } catch (err) {
-    console.error("Update check failed", err);
+    });
+  } else {
+    chrome.alarms.clear('keepAliveAlarm');
   }
 }
 
-chrome.runtime.onStartup.addListener(checkForUpdates);
-chrome.runtime.onInstalled.addListener(() => {
-  checkForUpdates();
-  chrome.alarms.create("checkUpdateAlarm", { periodInMinutes: 1440 }); // Check daily
-});
-
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "checkUpdateAlarm") {
-    checkForUpdates();
+  if (alarm.name === 'keepAliveAlarm') {
+    chrome.tabs.query({ url: ["*://*.globohq.com/*", "*://globohq.com/*"] }, (tabs) => {
+      if (tabs && tabs.length > 0) {
+        const origins = new Set();
+        tabs.forEach(tab => {
+          try {
+            const url = new URL(tab.url);
+            origins.add(url.origin);
+          } catch (e) {}
+        });
+        origins.forEach(origin => {
+          fetch(`${origin}/session_timeout/keep_current_session_alive.js`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          }).catch(() => {});
+        });
+      }
+    });
   }
 });
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.settings) {
+    syncKeepAliveAlarm().catch(() => {});
+  }
+});
+
+// Run keep-alive configuration checks immediately upon background service worker load/wakeup.
+syncKeepAliveAlarm().catch(() => {});
+

@@ -1,4 +1,29 @@
-if (localStorage.getItem('darkMode') === 'true') {
+function safeSetHTML(el, htmlString, contextTag) {
+  if (contextTag === 'svg') {
+    const doc = new DOMParser().parseFromString(htmlString, 'text/html');
+    el.replaceChildren(...doc.body.childNodes);
+    return;
+  }
+  if (contextTag === 'tr') {
+    const doc = new DOMParser().parseFromString('<table><tbody><tr>' + htmlString + '</tr></tbody></table>', 'text/html');
+    el.replaceChildren(...doc.querySelector('tr').childNodes);
+    return;
+  }
+  if (contextTag === 'table') {
+    const doc = new DOMParser().parseFromString('<table>' + htmlString + '</table>', 'text/html');
+    el.replaceChildren(...doc.querySelector('table').childNodes);
+    return;
+  }
+  const doc = new DOMParser().parseFromString(htmlString, 'text/html');
+  el.replaceChildren(...doc.body.childNodes);
+}
+let isLocalDarkMode = false;
+try {
+  isLocalDarkMode = localStorage.getItem('darkMode') === 'true';
+} catch (e) {
+  // Silent fallback
+}
+if (isLocalDarkMode) {
   document.documentElement.classList.add('dark-mode');
 }
 
@@ -6,7 +31,6 @@ const STORAGE_KEYS = {
   activeCall: "activeCall",
   callLogs: "callLogs",
   settings: "settings",
-  activeShift: "activeShift",
   shifts: "shifts"
 };
 
@@ -77,36 +101,6 @@ function setStatusBadge(active) {
   }
 }
 
-function setShiftBadge(onShift) {
-  const badge = document.getElementById("statusBadge");
-  if (onShift) {
-    badge.textContent = "On Shift";
-    badge.classList.add("shift");
-    badge.classList.remove("idle");
-  } else {
-    // fallback to idle (active call will override)
-    if (!badge.classList.contains('active')) {
-      badge.textContent = "Idle";
-      badge.classList.remove("shift");
-      badge.classList.add("idle");
-    }
-  }
-}
-
-function setShiftToggleButton(activeShift) {
-  const btn = document.getElementById("shiftToggleBtn");
-  if (!btn) return;
-  if (activeShift) {
-    btn.textContent = "End Shift";
-    btn.classList.add("ghost");
-    btn.classList.remove("wide");
-  } else {
-    btn.textContent = "Start Shift";
-    btn.classList.remove("ghost");
-    btn.classList.add("wide");
-  }
-}
-
 function updateActiveSection(activeCall) {
   const clientEl = document.getElementById("activeClient");
   const callIdEl = document.getElementById("activeCallId");
@@ -141,7 +135,7 @@ function renderLogs(logs) {
   const logsTable = document.getElementById("logsTable");
   const logsScroll = document.getElementById("logsScroll");
 
-  logsBody.innerHTML = "";
+  logsBody.replaceChildren();
 
   if (!logs || logs.length === 0) {
     logsEmpty.style.display = "block";
@@ -185,7 +179,7 @@ function createTypeBadge(callType) {
   badge.title = callType === "video" ? "Video call" : "Audio call";
 
   const icon = document.createElement("span");
-  icon.innerHTML = getTypeIconSvg(callType);
+  safeSetHTML(icon, getTypeIconSvg(callType), 'svg');
   badge.append(icon);
   return badge;
 }
@@ -206,25 +200,25 @@ async function refreshFromStorage() {
   const data = await chrome.storage.local.get([
     STORAGE_KEYS.activeCall,
     STORAGE_KEYS.callLogs,
-    STORAGE_KEYS.settings,
-    STORAGE_KEYS.activeShift
+    STORAGE_KEYS.settings
   ]);
 
   updateActiveSection(data[STORAGE_KEYS.activeCall]);
   renderLogs(data[STORAGE_KEYS.callLogs] || []);
 
-  // show shift state
-  const activeShift = data[STORAGE_KEYS.activeShift];
-  setShiftBadge(!!activeShift);
-  setShiftToggleButton(activeShift);
+  
 
   const settings = data[STORAGE_KEYS.settings] || {};
   if (settings.darkMode) {
     document.body.classList.add('dark-mode');
-    localStorage.setItem('darkMode', 'true');
+    try {
+      localStorage.setItem('darkMode', 'true');
+    } catch (e) {}
   } else {
     document.body.classList.remove('dark-mode');
-    localStorage.setItem('darkMode', 'false');
+    try {
+      localStorage.setItem('darkMode', 'false');
+    } catch (e) {}
   }
 
   updateLastUpdated();
@@ -261,70 +255,15 @@ function openSettingsPage() {
   window.open(url, "_blank");
 }
 
+function openShiftsPage() {
+  const url = chrome.runtime.getURL("shifts.html");
+  window.open(url, "_blank");
+}
+
 function wireEvents() {
   document.getElementById("settingsToggle").addEventListener("click", toggleSettings);
   document.getElementById("openAllRecords").addEventListener("click", openAllRecords);
-  // start/end shift buttons
-  const shiftBtn = document.getElementById('shiftToggleBtn');
-  if (shiftBtn) shiftBtn.addEventListener('click', toggleShift);
-}
-
-function fmtTimeForTZ(date) {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour12: false, hour: '2-digit', minute: '2-digit' }).formatToParts(date);
-    const h = parts.find(p => p.type === 'hour').value;
-    const m = parts.find(p => p.type === 'minute').value;
-    return `${h}:${m}`;
-  } catch (e) {
-    const hh = String(date.getHours()).padStart(2, '0');
-    const mm = String(date.getMinutes()).padStart(2, '0');
-    return `${hh}:${mm}`;
-  }
-}
-
-async function startShift() {
-  const now = new Date();
-  const iso = now.toISOString();
-  await chrome.storage.local.set({ [STORAGE_KEYS.activeShift]: { startTimeIso: iso, startMs: Date.now() } });
-  setShiftBadge(true);
-  setShiftToggleButton({ startTimeIso: iso });
-}
-
-async function endShift() {
-  const data = await chrome.storage.local.get([STORAGE_KEYS.activeShift, STORAGE_KEYS.shifts]);
-  const active = data[STORAGE_KEYS.activeShift];
-  if (!active) {
-    alert('No active shift to end.');
-    return;
-  }
-  const end = new Date();
-  const start = new Date(active.startTimeIso);
-  const startTime = fmtTimeForTZ(start);
-  const endTime = fmtTimeForTZ(end);
-  const shiftEntry = {
-    id: `s_${Date.now()}`,
-    name: 'Manual Shift',
-    startDateIso: active.startTimeIso,
-    startTime,
-    endTime,
-    recurrence: 'none'
-  };
-  const shifts = data[STORAGE_KEYS.shifts] || [];
-  shifts.push(shiftEntry);
-  await chrome.storage.local.set({ [STORAGE_KEYS.shifts]: shifts, [STORAGE_KEYS.activeShift]: null });
-  setShiftBadge(false);
-  setShiftToggleButton(null);
-  // notify records page if open
-  try { window.postMessage({ type: 'shifts-updated' }, '*'); } catch (e) {}
-}
-
-async function toggleShift() {
-  const data = await chrome.storage.local.get([STORAGE_KEYS.activeShift]);
-  if (data[STORAGE_KEYS.activeShift]) {
-    await endShift();
-  } else {
-    await startShift();
-  }
+  document.getElementById("addShiftBtn").addEventListener("click", openShiftsPage);
 }
 
 async function init() {
@@ -334,15 +273,6 @@ async function init() {
   startActiveTimer();
   setSettingsOpen(false);
 
-  // Check for updates
-  chrome.storage.local.get("updateAvailable", (data) => {
-    if (data.updateAvailable && data.updateAvailable.version) {
-      const banner = document.getElementById("updateBanner");
-      const link = document.getElementById("updateLink");
-      banner.style.display = "block";
-      banner.innerHTML = `Version ${data.updateAvailable.version} is available! <a href="${data.updateAvailable.url}" target="_blank">Download here</a>`;
-    }
-  });
 }
 
 init();

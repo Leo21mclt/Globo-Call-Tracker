@@ -208,6 +208,16 @@ body.records-page .tab-panels {
   min-height: 0;
 }
 
+.tab-panels .panel.active:not(.records-layout) {
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-bottom: 20px;
+}
+
+.tab-panels .panel.active:not(.records-layout)::-webkit-scrollbar {
+  display: none;
+}
+
 .tab-panels .panel.active.records-layout {
   display: grid;
 }

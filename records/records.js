@@ -1,4 +1,29 @@
-if (localStorage.getItem('darkMode') === 'true') {
+function safeSetHTML(el, htmlString, contextTag) {
+  if (contextTag === 'svg') {
+    const doc = new DOMParser().parseFromString(htmlString, 'text/html');
+    el.replaceChildren(...doc.body.childNodes);
+    return;
+  }
+  if (contextTag === 'tr') {
+    const doc = new DOMParser().parseFromString('<table><tbody><tr>' + htmlString + '</tr></tbody></table>', 'text/html');
+    el.replaceChildren(...doc.querySelector('tr').childNodes);
+    return;
+  }
+  if (contextTag === 'table') {
+    const doc = new DOMParser().parseFromString('<table>' + htmlString + '</table>', 'text/html');
+    el.replaceChildren(...doc.querySelector('table').childNodes);
+    return;
+  }
+  const doc = new DOMParser().parseFromString(htmlString, 'text/html');
+  el.replaceChildren(...doc.body.childNodes);
+}
+let isLocalDarkMode = false;
+try {
+  isLocalDarkMode = localStorage.getItem('darkMode') === 'true';
+} catch (e) {
+  // Silent fallback
+}
+if (isLocalDarkMode) {
   document.documentElement.classList.add('dark-mode');
 }
 
@@ -16,7 +41,9 @@ const DEFAULT_SETTINGS = {
   shiftHourlyRate: 0,
   autoAnswerEnabled: false,
   autoAnswerDelaySeconds: 5,
-  darkMode: false
+  darkMode: false,
+  keepLoggedIn: false,
+  globoDarkMode: false
 };
 
 const TZ = "America/New_York";
@@ -73,7 +100,7 @@ function createTypeBadge(callType) {
   else badge.title = "Audio call";
 
   const icon = document.createElement("span");
-  icon.innerHTML = getTypeIconSvg(callType);
+  safeSetHTML(icon, getTypeIconSvg(callType), 'svg');
   badge.append(icon);
   return badge;
 }
@@ -284,6 +311,36 @@ function generateScheduledShiftLogs(shifts, weeklyShifts) {
   return generatedLogs;
 }
 
+function cleanDayShifts(shifts) {
+  if (!Array.isArray(shifts) || shifts.length <= 1) return shifts || [];
+
+  const intervals = shifts.map(s => {
+    const [sh, sm] = s.startTime.split(':').map(Number);
+    const [eh, em] = s.endTime.split(':').map(Number);
+    let start = sh * 60 + sm;
+    let end = eh * 60 + em;
+    if (end < start) {
+      end += 24 * 60;
+    }
+    return { start, end, original: s };
+  });
+
+  return intervals.filter((curr, index) => {
+    const isEnclosed = intervals.some((other, otherIdx) => {
+      if (index === otherIdx) return false;
+      const encloses = other.start <= curr.start && curr.end <= other.end;
+      if (encloses) {
+        if (other.start === curr.start && other.end === curr.end) {
+          return index > otherIdx;
+        }
+        return true;
+      }
+      return false;
+    });
+    return !isEnclosed;
+  }).map(item => item.original);
+}
+
 function normalizeWeekData(weekData) {
   const normalized = buildEmptyWeek();
   if (!weekData || typeof weekData !== "object") return normalized;
@@ -292,12 +349,12 @@ function normalizeWeekData(weekData) {
     if (Array.isArray(value)) {
       normalized[dayKey] = value
         .filter((item) => item && item.startTime && item.endTime)
-        .map((item) => ({ startTime: item.startTime, endTime: item.endTime }));
+        .map((item) => ({ startTime: item.startTime, endTime: item.endTime, source: item.source }));
       return;
     }
     if (value && typeof value === "object" && value.enabled) {
       if (value.startTime && value.endTime) {
-        normalized[dayKey] = [{ startTime: value.startTime, endTime: value.endTime }];
+        normalized[dayKey] = [{ startTime: value.startTime, endTime: value.endTime, source: value.source }];
       }
     }
   });
@@ -354,7 +411,7 @@ function setCurrentMonth(year, month0) {
   state.currentYear = year;
   state.currentMonth = month0;
   const label = document.getElementById("currentMonthLabel");
-  const dt = new Date(Date.UTC(year, month0, 1));
+  const dt = new Date(Date.UTC(year, month0, 1, 12, 0, 0));
   const monthName = new Intl.DateTimeFormat("en-US", { timeZone: TZ, month: "long", year: "numeric" }).format(dt);
   if (label) label.textContent = monthName;
 }
@@ -541,7 +598,7 @@ function renderRecords(logs, settings, shifts, weeklyShifts) {
   if (lostAudioEl) lostAudioEl.textContent = formatMinutesAndSeconds(lostAudioSeconds);
   if (lostVideoEl) lostVideoEl.textContent = formatMinutesAndSeconds(lostVideoSeconds);
 
-  if (container) container.innerHTML = "";
+  if (container) container.replaceChildren();
   if (countEl) countEl.textContent = `${filtered.length} call${filtered.length === 1 ? "" : "s"}`;
 
   if (!filtered.length) {
@@ -579,7 +636,7 @@ function renderRecords(logs, settings, shifts, weeklyShifts) {
     summary.append(title, meta);
 
     const table = document.createElement("table");
-    table.innerHTML = `
+    safeSetHTML(table, `
       <thead>
         <tr>
           <th>Start</th>
@@ -595,7 +652,7 @@ function renderRecords(logs, settings, shifts, weeklyShifts) {
         </tr>
       </thead>
       <tbody></tbody>
-    `;
+    `, 'table');
 
     const tbody = table.querySelector("tbody");
 
@@ -864,6 +921,67 @@ function classifyLogMode(log, shifts, weeklyShifts) {
   return { mode: 'freelance', overlapSeconds: 0 };
 }
 
+function consolidateExistingLogs(logs) {
+  if (!logs || !logs.length) return { mergedLogs: [], changed: false };
+  let changed = false;
+  
+  const groups = {};
+  const mergedLogs = [];
+  
+  for (const log of logs) {
+    if (!log.callId || log.callId === "Unknown") {
+      mergedLogs.push(log);
+      continue;
+    }
+    const key = `${log.callId}::${log.client}`;
+    if (!groups[key]) {
+      groups[key] = [];
+    }
+    groups[key].push(log);
+  }
+  
+  for (const key in groups) {
+    const group = groups[key];
+    if (group.length === 1) {
+      mergedLogs.push(group[0]);
+    } else {
+      changed = true;
+      let minStartMs = group[0].startTimeMs;
+      let maxEndMs = group[0].endTimeMs;
+      
+      for (let i = 1; i < group.length; i++) {
+        minStartMs = Math.min(minStartMs, group[i].startTimeMs);
+        maxEndMs = Math.max(maxEndMs, group[i].endTimeMs);
+      }
+      
+      const mergedDurationSeconds = Math.max(0, Math.floor((maxEndMs - minStartMs) / 1000));
+      const billableMinutes = Math.floor(mergedDurationSeconds / 60);
+      const billableSeconds = billableMinutes * 60;
+      const lostSeconds = Math.max(0, mergedDurationSeconds - billableSeconds);
+      
+      const mergedLog = {
+        ...group[0],
+        startTimeMs: minStartMs,
+        startTimeIso: new Date(minStartMs).toISOString(),
+        startRoundedMs: minStartMs - (minStartMs % 60000),
+        endTimeMs: maxEndMs,
+        endTimeIso: new Date(maxEndMs).toISOString(),
+        endRoundedMs: maxEndMs - (maxEndMs % 60000),
+        durationSeconds: mergedDurationSeconds,
+        billableSeconds: billableSeconds,
+        billableMinutes: billableMinutes,
+        realMinutes: Number((mergedDurationSeconds / 60).toFixed(2)),
+        lostSeconds: lostSeconds,
+        source: "merged-retroactive"
+      };
+      
+      mergedLogs.push(mergedLog);
+    }
+  }
+  
+  return { mergedLogs, changed };
+}
+
 async function loadAndRender() {
   const data = await chrome.storage.local.get([
     STORAGE_KEYS.callLogs,
@@ -871,7 +989,14 @@ async function loadAndRender() {
     STORAGE_KEYS.shifts,
     STORAGE_KEYS.weeklyShifts
   ]);
-  const logs = (data[STORAGE_KEYS.callLogs] || []).slice();
+  let logs = (data[STORAGE_KEYS.callLogs] || []).slice();
+  
+  const { mergedLogs, changed } = consolidateExistingLogs(logs);
+  if (changed) {
+    logs = mergedLogs;
+    await chrome.storage.local.set({ [STORAGE_KEYS.callLogs]: logs });
+  }
+
   const settings = { ...DEFAULT_SETTINGS, ...(data[STORAGE_KEYS.settings] || {}) };
   const shifts = data[STORAGE_KEYS.shifts] || [];
   const weeklyShifts = data[STORAGE_KEYS.weeklyShifts] || {};
@@ -893,8 +1018,18 @@ async function loadAndRender() {
   const darkModeEl = document.getElementById('darkMode');
   if (darkModeEl) darkModeEl.checked = settings.darkMode;
   
+  const keepLoggedInEl = document.getElementById('keepLoggedIn');
+  if (keepLoggedInEl) keepLoggedInEl.checked = settings.keepLoggedIn;
+  
+  const globoDarkModeEl = document.getElementById('globoDarkMode');
+  if (globoDarkModeEl) globoDarkModeEl.checked = settings.globoDarkMode;
+  
   document.body.classList.toggle('dark-mode', settings.darkMode);
-  localStorage.setItem('darkMode', settings.darkMode ? 'true' : 'false');
+  try {
+    localStorage.setItem('darkMode', settings.darkMode ? 'true' : 'false');
+  } catch (e) {
+    // Silent fallback
+  }
 
   renderRecords(logs, settings, shifts, weeklyShifts);
   renderWeeklyEditor(weeklyShifts);
@@ -954,9 +1089,13 @@ function bindEvents() {
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
       const retention = parseInt(document.getElementById('retentionDays').value, 10);
-      const rateA = parseFloat(document.getElementById('ratePerMinuteAudio').value);
-      const rateV = parseFloat(document.getElementById('ratePerMinuteVideo').value);
-      const shiftRate = parseFloat(document.getElementById('shiftHourlyRate').value);
+      function parseLocalizedFloat(val) {
+        if (typeof val !== 'string') val = String(val || '');
+        return parseFloat(val.replace(',', '.'));
+      }
+      const rateA = parseLocalizedFloat(document.getElementById('ratePerMinuteAudio').value);
+      const rateV = parseLocalizedFloat(document.getElementById('ratePerMinuteVideo').value);
+      const shiftRate = parseLocalizedFloat(document.getElementById('shiftHourlyRate').value);
       
       const autoAnswerEnabledEl = document.getElementById('autoAnswerEnabled');
       const autoAnswerEnabled = autoAnswerEnabledEl ? autoAnswerEnabledEl.checked : false;
@@ -964,6 +1103,10 @@ function bindEvents() {
       const autoAnswerDelaySeconds = autoAnswerDelayEl ? parseInt(autoAnswerDelayEl.value, 10) : 5;
       const darkModeEl = document.getElementById('darkMode');
       const darkMode = darkModeEl ? darkModeEl.checked : false;
+      const keepLoggedInEl = document.getElementById('keepLoggedIn');
+      const keepLoggedIn = keepLoggedInEl ? keepLoggedInEl.checked : false;
+      const globoDarkModeEl = document.getElementById('globoDarkMode');
+      const globoDarkMode = globoDarkModeEl ? globoDarkModeEl.checked : false;
 
       const settings = {
         retentionDays: Number.isFinite(retention) ? retention : DEFAULT_SETTINGS.retentionDays,
@@ -972,9 +1115,19 @@ function bindEvents() {
         shiftHourlyRate: Number.isFinite(shiftRate) ? shiftRate : DEFAULT_SETTINGS.shiftHourlyRate,
         autoAnswerEnabled: autoAnswerEnabled,
         autoAnswerDelaySeconds: Number.isFinite(autoAnswerDelaySeconds) ? autoAnswerDelaySeconds : DEFAULT_SETTINGS.autoAnswerDelaySeconds,
-        darkMode: darkMode
+        darkMode: darkMode,
+        keepLoggedIn: keepLoggedIn,
+        globoDarkMode: globoDarkMode
       };
       await chrome.storage.local.set({ [STORAGE_KEYS.settings]: settings });
+      
+      // Notify active tabs about Globo Dark Mode update
+      chrome.tabs.query({ url: "*://*.globohq.com/*" }, (tabs) => {
+        for (const tab of tabs) {
+          chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_GLOBO_DARK_MODE", enabled: globoDarkMode }).catch(() => {});
+        }
+      });
+
       await loadAndRender();
       showSaveBanner('Changes saved');
     });
@@ -989,82 +1142,7 @@ function bindEvents() {
     });
   }
 
-  const checkUpdatesBtn = document.getElementById('checkUpdatesBtn');
-  if (checkUpdatesBtn) {
-    checkUpdatesBtn.addEventListener('click', async () => {
-      try {
-        checkUpdatesBtn.textContent = 'Checking...';
-        checkUpdatesBtn.disabled = true;
 
-        const manifest = chrome.runtime.getManifest();
-        const currentVersion = manifest.version;
-        const response = await fetch("https://api.github.com/repos/Leo21mclt/Globo-Call-Tracker/releases/latest");
-        
-        if (!response.ok) throw new Error("Could not fetch updates.");
-        const release = await response.json();
-        let latestVersion = release.tag_name;
-        if (latestVersion.startsWith("v") || latestVersion.startsWith("V")) {
-          latestVersion = latestVersion.substring(1);
-        }
-
-        let isNewer = false;
-        if (latestVersion && latestVersion !== currentVersion) {
-          const v1 = currentVersion.split('.').map(Number);
-          const v2 = latestVersion.split('.').map(Number);
-          for (let i = 0; i < Math.max(v1.length, v2.length); i++) {
-            const n1 = v1[i] || 0;
-            const n2 = v2[i] || 0;
-            if (n2 > n1) { isNewer = true; break; }
-            if (n2 < n1) { break; }
-          }
-        }
-
-        if (isNewer) {
-          const modal = document.createElement('div');
-          modal.style.position = 'fixed';
-          modal.style.top = '0'; modal.style.left = '0'; modal.style.width = '100%'; modal.style.height = '100%';
-          modal.style.backgroundColor = 'rgba(0,0,0,0.6)';
-          modal.style.display = 'flex'; modal.style.alignItems = 'center'; modal.style.justifyContent = 'center';
-          modal.style.zIndex = '99999';
-          modal.innerHTML = `
-            <div style="background: var(--surface); color: var(--ink); padding: 24px; border-radius: var(--radius); width: 450px; max-width: 90%; box-shadow: var(--shadow);">
-              <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 1.25rem;">New Version Found (v${latestVersion})</h2>
-              <div style="text-align: left; font-size: 14px; line-height: 1.5; margin-bottom: 24px;">
-                <p style="margin-top: 0;">A new version of Globo Call Tracker is available!</p>
-                <ol style="margin: 0; padding-left: 20px;">
-                  <li>Make sure you are NOT currently on an active call.</li>
-                  <li>Click the download button below.</li>
-                  <li>Unzip the downloaded folder.</li>
-                  <li>Copy the contents and paste them into your CURRENT installation folder, choosing "Replace files in the destination" when asked.</li>
-                  <li>Go to <code>chrome://extensions/</code> in Chrome.</li>
-                  <li>Find "Globo Call Tracker" and click the circular "Reload" arrow icon.</li>
-                  <li>Refresh any open Globo Dashboard tabs to apply the new code.</li>
-                </ol>
-                <p style="margin-bottom: 0;"><em>Your records will be perfectly preserved!</em></p>
-              </div>
-              <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                <button id="updateModalCancel" class="btn" style="background: var(--stroke); color: var(--ink);">Close</button>
-                <button id="updateModalConfirm" class="btn" style="background: var(--accent); color: #fff;">Go to Download Page</button>
-              </div>
-            </div>
-          `;
-          document.body.appendChild(modal);
-          document.getElementById('updateModalCancel').onclick = () => modal.remove();
-          document.getElementById('updateModalConfirm').onclick = () => {
-            modal.remove();
-            window.open(release.html_url, '_blank');
-          };
-        } else {
-          alert('Up to Date! You are running the latest version of Globo Call Tracker.');
-        }
-      } catch (err) {
-        alert('Error: Could not check for updates. Please try again later.');
-      } finally {
-        checkUpdatesBtn.textContent = 'Check for Updates';
-        checkUpdatesBtn.disabled = false;
-      }
-    });
-  }
   const prevWeekBtn = document.getElementById('prevWeek');
   if (prevWeekBtn) {
     prevWeekBtn.addEventListener('click', async () => {
@@ -1097,26 +1175,23 @@ function bindEvents() {
       }
       const weekKey = state.currentWeekStartKey;
       const weekData = buildEmptyWeek();
-      let hasMissingTimes = false;
       WEEKDAY_KEYS.forEach((dayKey) => {
         const block = document.querySelector(`[data-week-block="${dayKey}"]`);
         if (!block) return;
         const rows = Array.from(block.querySelectorAll('.week-shift-row'));
         const shiftsForDay = [];
         rows.forEach((row) => {
-          const startEl = row.querySelector('[data-week-start]');
-          const endEl = row.querySelector('[data-week-end]');
-          const startTime = startEl ? startEl.value : "";
-          const endTime = endEl ? endEl.value : "";
-          if (!startTime || !endTime) {
-            hasMissingTimes = true;
-            return;
+          const startTime = row.getAttribute('data-start');
+          const endTime = row.getAttribute('data-end');
+          const source = row.getAttribute('data-source') || undefined;
+          if (startTime && endTime) {
+            const shiftObj = { startTime, endTime };
+            if (source) shiftObj.source = source;
+            shiftsForDay.push(shiftObj);
           }
-          shiftsForDay.push({ startTime, endTime });
         });
-        weekData[dayKey] = shiftsForDay;
+        weekData[dayKey] = cleanDayShifts(shiftsForDay);
       });
-      if (hasMissingTimes) return;
       const stored = await chrome.storage.local.get([STORAGE_KEYS.weeklyShifts]);
       const weeklyShifts = stored[STORAGE_KEYS.weeklyShifts] || {};
       weeklyShifts[weekKey] = weekData;
@@ -1129,6 +1204,7 @@ function bindEvents() {
 
       await chrome.storage.local.set({ [STORAGE_KEYS.weeklyShifts]: weeklyShifts });
       await loadAndRender();
+      showSaveBanner('Week saved');
     });
   }
 
@@ -1150,7 +1226,14 @@ function bindEvents() {
           }
           return;
         }
-        pendingDeputySync = response.shifts || [];
+        const rawShifts = response.shifts || [];
+        const unique = [];
+        const seen = new Set();
+        rawShifts.forEach(s => {
+          const key = `${s.date}|${s.startTime}|${s.endTime}`;
+          if (!seen.has(key)) { seen.add(key); unique.push(s); }
+        });
+        pendingDeputySync = unique;
         renderSyncPreview();
       });
     });
@@ -1181,9 +1264,9 @@ function renderSyncPreview() {
   const content = document.getElementById('syncPreviewContent');
   if (!modal || !content) return;
   
-  content.innerHTML = '';
+  content.replaceChildren();
   if (pendingDeputySync.length === 0) {
-    content.innerHTML = '<p class="muted">No shifts found to sync.</p>';
+    safeSetHTML(content, '<p class="muted">No shifts found to sync.</p>');
   } else {
     // Group by weekKey
     const byWeek = {};
@@ -1201,7 +1284,7 @@ function renderSyncPreview() {
       
       const weekEl = document.createElement('div');
       weekEl.className = 'preview-week';
-      weekEl.innerHTML = `<h3>Week of ${weekLabel}</h3><div class="week-shifts"></div>`;
+      safeSetHTML(weekEl, `<h3>Week of ${weekLabel}</h3><div class="week-shifts"></div>`);
       const shiftsContainer = weekEl.querySelector('.week-shifts');
 
       weekShifts.sort((a, b) => a.date.localeCompare(b.date)).forEach(shift => {
@@ -1209,13 +1292,13 @@ function renderSyncPreview() {
         const dayLabel = formatDayLabel(d);
         const row = document.createElement('div');
         row.className = 'week-shift-row';
-        row.innerHTML = `
+        safeSetHTML(row, `
           <div class="week-day" style="padding-bottom: 4px;">${dayLabel} <span class="badge-deputy">Deputy</span></div>
           <div style="display: flex; gap: 8px;">
             <input type="time" data-sync-index="${shift.index}" data-sync-field="start" value="${shift.startTime}" />
             <input type="time" data-sync-index="${shift.index}" data-sync-field="end" value="${shift.endTime}" />
           </div>
-        `;
+        `);
         shiftsContainer.appendChild(row);
       });
       content.appendChild(weekEl);
@@ -1270,12 +1353,12 @@ async function approveDeputySync() {
     // First, remove existing deputy shifts for this week so we don't duplicate
     WEEKDAY_KEYS.forEach(dayKey => {
       const existingShifts = weeklyShifts[weekKey][dayKey] || [];
-      weeklyShifts[weekKey][dayKey] = existingShifts.filter(s => s.source !== 'deputy');
+      const nonDeputy = existingShifts.filter(s => s.source !== 'deputy');
+      const newShifts = byWeek[weekKey][dayKey] || [];
       
-      // Then add the newly scraped ones for this day
-      if (byWeek[weekKey][dayKey]) {
-        weeklyShifts[weekKey][dayKey].push(...byWeek[weekKey][dayKey]);
-      }
+      // Combine and then clean duplicates/overlaps!
+      const combined = [...nonDeputy, ...newShifts];
+      weeklyShifts[weekKey][dayKey] = cleanDayShifts(combined);
     });
   });
 
@@ -1312,7 +1395,7 @@ function renderWeeklyEditor(weeklyShifts) {
   }
   const weekKey = state.currentWeekStartKey;
   const weekData = normalizeWeekData(weeklyShifts[weekKey]);
-  grid.innerHTML = '';
+  grid.replaceChildren();
 
   const startDate = parseWeekStartKey(weekKey);
   WEEKDAY_KEYS.forEach((dayKey, idx) => {
@@ -1334,18 +1417,18 @@ function renderWeeklyEditor(weeklyShifts) {
           const startFmt = format12Hour(shift.startTime);
           const endFmt = format12Hour(shift.endTime);
           return `
-            <div class="week-shift-row compact-shift shift-item" data-week="${weekKey}" data-day="${dayKey}" data-index="${sIdx}" data-start="${shift.startTime || ''}" data-end="${shift.endTime || ''}">
+            <div class="week-shift-row compact-shift shift-item" data-week="${weekKey}" data-day="${dayKey}" data-index="${sIdx}" data-start="${shift.startTime || ''}" data-end="${shift.endTime || ''}" data-source="${shift.source || ''}">
               <div class="shift-time" style="cursor:pointer; padding:6px; border-radius:4px; margin-bottom:4px; text-align:center;">${startFmt} - ${endFmt}</div>
             </div>
           `;
         }).join('')
       : '<div class="week-empty" style="text-align:center; padding:8px;">Unscheduled</div>';
       
-    block.innerHTML = `
+    safeSetHTML(block, `
       <div class="week-day">${label}</div>
       <div class="week-shifts">${shiftsHtml}</div>
       <button type="button" class="week-add" data-week-add="${dayKey}">+ Add shift</button>
-    `;
+    `);
     grid.appendChild(block);
   });
 
@@ -1386,7 +1469,7 @@ function renderWeeklyEditor(weeklyShifts) {
       rowDate.setUTCDate(rowDate.getUTCDate() + WEEKDAY_KEYS.indexOf(dayKey));
       const dateLabel = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short', month: '2-digit', day: '2-digit' }).format(rowDate);
 
-      state.currentEditShiftId = "weekly-" + weekKey + "-" + dayKey + "--1";
+      state.currentEditShiftId = "weekly-" + weekKey + "-" + dayKey + "-NEW";
 
       document.getElementById('editShiftDate').value = dateLabel;
       document.getElementById('editShiftStart').value = "";
@@ -1407,7 +1490,7 @@ function renderWeeklyEditor(weeklyShifts) {
 function renderShiftsList(shifts, weeklyShifts) {
   const container = document.getElementById('shiftsList');
   if (!container) return;
-  container.innerHTML = '';
+  container.replaceChildren();
   
   let combinedShifts = [...(shifts || [])];
   const now = new Date();
@@ -1463,7 +1546,7 @@ function renderShiftsList(shifts, weeklyShifts) {
   });
 
   if (!combinedShifts.length) {
-    container.innerHTML = '<div class="empty">No shifts defined.</div>';
+    safeSetHTML(container, '<div class="empty">No shifts defined.</div>');
     return;
   }
   combinedShifts.forEach((s) => {
@@ -1477,7 +1560,7 @@ function renderShiftsList(shifts, weeklyShifts) {
     el.setAttribute('data-start', s.startTime || '');
     el.setAttribute('data-end', s.endTime || '');
     el.setAttribute('data-date', dateLabel);
-    el.innerHTML = `
+    safeSetHTML(el, `
       <div class="shift-meta">
         <strong>${s.name}</strong>
         <span class="muted">${dateLabel}</span>
@@ -1485,7 +1568,7 @@ function renderShiftsList(shifts, weeklyShifts) {
       <div class="shift-time">
         ${format12Hour(s.startTime)} - ${format12Hour(s.endTime)}
       </div>
-    `;
+    `);
     
     // Open modal on click
     el.addEventListener('click', () => {
@@ -1547,14 +1630,24 @@ function bindEditModalEvents() {
         const parts = id.split('-');
         const weekKey = `${parts[1]}-${parts[2]}-${parts[3]}`;
         const dayKey = parts[4];
-        const sIdx = parseInt(parts[5], 10);
+        const sIdxStr = parts[5];
         const storedWeekly = await chrome.storage.local.get([STORAGE_KEYS.weeklyShifts]);
         const weeklyShifts = storedWeekly[STORAGE_KEYS.weeklyShifts] || {};
-        if (weeklyShifts[weekKey] && weeklyShifts[weekKey][dayKey] && weeklyShifts[weekKey][dayKey][sIdx]) {
-          weeklyShifts[weekKey][dayKey][sIdx].startTime = startTime;
-          weeklyShifts[weekKey][dayKey][sIdx].endTime = endTime;
-          await chrome.storage.local.set({ [STORAGE_KEYS.weeklyShifts]: weeklyShifts });
+        
+        if (!weeklyShifts[weekKey]) weeklyShifts[weekKey] = {};
+        if (!weeklyShifts[weekKey][dayKey]) weeklyShifts[weekKey][dayKey] = [];
+        
+        if (sIdxStr === "NEW") {
+          weeklyShifts[weekKey][dayKey].push({ startTime, endTime });
+        } else {
+          const sIdx = parseInt(sIdxStr, 10);
+          if (weeklyShifts[weekKey][dayKey][sIdx]) {
+            weeklyShifts[weekKey][dayKey][sIdx].startTime = startTime;
+            weeklyShifts[weekKey][dayKey][sIdx].endTime = endTime;
+          }
         }
+        weeklyShifts[weekKey][dayKey] = cleanDayShifts(weeklyShifts[weekKey][dayKey]);
+        await chrome.storage.local.set({ [STORAGE_KEYS.weeklyShifts]: weeklyShifts });
       } else {
         const stored = await chrome.storage.local.get([STORAGE_KEYS.shifts]);
         const shifts = stored[STORAGE_KEYS.shifts] || [];
