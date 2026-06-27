@@ -48,6 +48,32 @@ const DEFAULT_SETTINGS = {
 
 const TZ = "America/New_York";
 
+function getMsForNYTime(year, month1, day, hour, minute) {
+  const date = new Date(Date.UTC(year, month1 - 1, day, hour, minute, 0, 0));
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    year: "numeric", month: "numeric", day: "numeric",
+    hour: "numeric", minute: "numeric", hour12: false
+  });
+  for (let iter = 0; iter < 3; iter++) {
+    const parts = formatter.formatToParts(date);
+    const formattedYear = parseInt(parts.find(p => p.type === 'year').value, 10);
+    const formattedMonth = parseInt(parts.find(p => p.type === 'month').value, 10);
+    const formattedDay = parseInt(parts.find(p => p.type === 'day').value, 10);
+    const formattedHour = parseInt(parts.find(p => p.type === 'hour').value, 10);
+    const formattedMinute = parseInt(parts.find(p => p.type === 'minute').value, 10);
+    
+    const targetTime = Date.UTC(year, month1 - 1, day, hour, minute);
+    const formattedTime = Date.UTC(formattedYear, formattedMonth - 1, formattedDay, formattedHour, formattedMinute);
+    
+    const diffMs = targetTime - formattedTime;
+    if (diffMs === 0) break;
+    
+    date.setTime(date.getTime() + diffMs);
+  }
+  return date.getTime();
+}
+
 const FORMATTERS = {
   time12: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: TZ }),
   time24: new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }),
@@ -221,14 +247,14 @@ function generateScheduledShiftLogs(shifts, weeklyShifts) {
     shifts.forEach((s) => {
       if (s.recurrence === 'none' && s.startDateIso && s.startTime && s.endTime) {
         const y = parseInt(s.startDateIso.substring(0, 4), 10);
-        const m = parseInt(s.startDateIso.substring(5, 7), 10) - 1;
+        const m = parseInt(s.startDateIso.substring(5, 7), 10);
         const d = parseInt(s.startDateIso.substring(8, 10), 10);
         
         const startParts = s.startTime.split(':');
         const endParts = s.endTime.split(':');
         
-        const startMs = new Date(y, m, d, parseInt(startParts[0], 10), parseInt(startParts[1], 10)).getTime();
-        let endMs = new Date(y, m, d, parseInt(endParts[0], 10), parseInt(endParts[1], 10)).getTime();
+        const startMs = getMsForNYTime(y, m, d, parseInt(startParts[0], 10), parseInt(startParts[1], 10));
+        let endMs = getMsForNYTime(y, m, d, parseInt(endParts[0], 10), parseInt(endParts[1], 10));
         if (endMs < startMs) {
           endMs += 24 * 60 * 60 * 1000;
         }
@@ -269,7 +295,7 @@ function generateScheduledShiftLogs(shifts, weeklyShifts) {
         rowDate.setUTCDate(weekStartDate.getUTCDate() + idx);
         
         const y = rowDate.getUTCFullYear();
-        const m = rowDate.getUTCMonth();
+        const m = rowDate.getUTCMonth() + 1;
         const d = rowDate.getUTCDate();
         
         dayShifts.forEach((shift, sIdx) => {
@@ -277,8 +303,8 @@ function generateScheduledShiftLogs(shifts, weeklyShifts) {
             const startParts = shift.startTime.split(':');
             const endParts = shift.endTime.split(':');
             
-            const startMs = new Date(y, m, d, parseInt(startParts[0], 10), parseInt(startParts[1], 10)).getTime();
-            let endMs = new Date(y, m, d, parseInt(endParts[0], 10), parseInt(endParts[1], 10)).getTime();
+            const startMs = getMsForNYTime(y, m, d, parseInt(startParts[0], 10), parseInt(startParts[1], 10));
+            let endMs = getMsForNYTime(y, m, d, parseInt(endParts[0], 10), parseInt(endParts[1], 10));
             if (endMs < startMs) {
               endMs += 24 * 60 * 60 * 1000;
             }
@@ -441,13 +467,14 @@ function calculateTotalShiftDurationForMonth(year, month0, shifts, weeklyShifts)
         const logKey = getMonthKeyForDate(d);
         const wanted = `${year}-${String(month0 + 1).padStart(2, "0")}`;
         if (logKey === wanted) {
-            const y = d.getFullYear();
-            const m = d.getMonth();
-            const day = d.getDate();
+            const parts = FORMATTERS.datePart.formatToParts(d);
+            const y = parseInt(parts.find(p => p.type === "year").value, 10);
+            const m = parseInt(parts.find(p => p.type === "month").value, 10);
+            const day = parseInt(parts.find(p => p.type === "day").value, 10);
             const startParts = s.startTime.split(':');
             const endParts = s.endTime.split(':');
-            const startMs = new Date(y, m, day, parseInt(startParts[0], 10), parseInt(startParts[1], 10)).getTime();
-            let endMs = new Date(y, m, day, parseInt(endParts[0], 10), parseInt(endParts[1], 10)).getTime();
+            const startMs = getMsForNYTime(y, m, day, parseInt(startParts[0], 10), parseInt(startParts[1], 10));
+            let endMs = getMsForNYTime(y, m, day, parseInt(endParts[0], 10), parseInt(endParts[1], 10));
             if (endMs < startMs) {
               endMs += 24 * 60 * 60 * 1000;
             }
@@ -479,7 +506,7 @@ function calculateTotalShiftDurationForMonth(year, month0, shifts, weeklyShifts)
         
         if (shiftMonthKey === wanted) {
           const y = parseInt(yStr, 10);
-          const m = parseInt(mStr, 10) - 1;
+          const m = parseInt(mStr, 10);
           const d = parseInt(dStr, 10);
           
           dayShifts.forEach(shift => {
@@ -487,8 +514,8 @@ function calculateTotalShiftDurationForMonth(year, month0, shifts, weeklyShifts)
               const startParts = shift.startTime.split(':');
               const endParts = shift.endTime.split(':');
               
-              const startMs = new Date(y, m, d, parseInt(startParts[0], 10), parseInt(startParts[1], 10)).getTime();
-              let endMs = new Date(y, m, d, parseInt(endParts[0], 10), parseInt(endParts[1], 10)).getTime();
+              const startMs = getMsForNYTime(y, m, d, parseInt(startParts[0], 10), parseInt(startParts[1], 10));
+              let endMs = getMsForNYTime(y, m, d, parseInt(endParts[0], 10), parseInt(endParts[1], 10));
               if (endMs < startMs) {
                 endMs += 24 * 60 * 60 * 1000;
               }
@@ -879,15 +906,16 @@ function classifyLogMode(log, shifts, weeklyShifts) {
     }
     mergedBlocks.push(current);
 
-    const y = dt.getFullYear();
-    const m = dt.getMonth();
-    const d = dt.getDate();
+    const dateParts = FORMATTERS.datePart.formatToParts(dt);
+    const yr = parseInt(dateParts.find(x => x.type === 'year').value, 10);
+    const mo = parseInt(dateParts.find(x => x.type === 'month').value, 10);
+    const dy = parseInt(dateParts.find(x => x.type === 'day').value, 10);
     
     let msBlocks = mergedBlocks.map(block => {
       const startParts = block.start.split(':');
       const endParts = block.end.split(':');
-      const bStartMs = new Date(y, m, d, parseInt(startParts[0], 10), parseInt(startParts[1], 10)).getTime();
-      let bEndMs = new Date(y, m, d, parseInt(endParts[0], 10), parseInt(endParts[1], 10)).getTime();
+      const bStartMs = getMsForNYTime(yr, mo, dy, parseInt(startParts[0], 10), parseInt(startParts[1], 10));
+      let bEndMs = getMsForNYTime(yr, mo, dy, parseInt(endParts[0], 10), parseInt(endParts[1], 10));
       if (bEndMs < bStartMs) bEndMs += 24 * 3600 * 1000;
       return { startMs: bStartMs, endMs: bEndMs };
     });
