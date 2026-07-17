@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Account</title>
+    <link rel="stylesheet" href="records/records.css" />
+    <script src="records/theme-init.js"></script>
+  </head>
+  <body class="account-page">
+    <div class="shell">
+      <aside class="rail">
+        <div class="rail-logo" aria-hidden="true">CT</div>
+        <button class="tab rail-btn" data-tab="recordsTab" data-href="records.html" aria-label="Records">
+          <svg style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <line x1="10" y1="9" x2="8" y2="9" />
+          </svg>
+        </button>
+        <button class="tab rail-btn" data-tab="warningsTab" data-href="warnings.html" aria-label="Warnings">
+          <svg style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </button>
+        <button class="tab rail-btn" data-tab="shiftsTab" data-href="shifts.html" aria-label="Shifts">
+          <svg style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+        </button>
+        <button class="tab rail-btn active rail-btn-account" data-tab="accountTab" data-href="account.html" aria-label="Account">
+          <svg style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        </button>
+        <button class="tab rail-btn" data-tab="settingsTab" data-href="settings.html" aria-label="Settings">
+          <svg style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+      </aside>
+      <div class="page">
+        <div class="app">
+          <header>
+            <h1>Account Standing</h1>
+          </header>
+
+          <div class="tab-panels">
+            <section id="accountTab" class="panel active">
+              
+              <!-- Upper Dashboard Cards Grid -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 25px;">
+                
+                <!-- Current Standing Card -->
+                <div class="card">
+                  <h2>Current Standing</h2>
+                  <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="color: var(--text-alt);">Probation Status</span>
+                      <span id="probationBadge" class="badge">Checking...</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="color: var(--text-alt);">Probation Category</span>
+                      <span id="probationCategory" style="font-weight: 500;">--</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="color: var(--text-alt);">Routing Priority</span>
+                      <span id="priorityBadge" class="badge">Checking...</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- System Integrity Counters Card -->
+                <div class="card">
+                  <h2>System Counters</h2>
+                  <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="color: var(--text-alt);">Unanswered Audio Calls</span>
+                      <span id="counterUnanswered" style="font-size: 1.2em; font-weight: 600;">0</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="color: var(--text-alt);">Unanswered Video Calls</span>
+                      <span id="counterVideoUnanswered" style="font-size: 1.2em; font-weight: 600;">0</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <span style="color: var(--text-alt);">VoIP Line Error Events</span>
+                      <span id="counterErrors" style="font-size: 1.2em; font-weight: 600; color: var(--danger);">0</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Cloud Sync Panel Card -->
+                <div class="card" id="syncCard">
+                  <h2>Cloud Synchronization</h2>
+                  
+                  <!-- View 1: Main Panel (Choose Login / Register) -->
+                  <div id="syncPanelMain" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+                    <div style="font-size: 0.9em; color: var(--text-alt);">
+                      Sync your call logs and shifts across different devices securely using SupaBase.
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                      <button id="navToLogin" class="btn" style="flex: 1;">Log In to Cloud Sync</button>
+                      <button id="navToRegister" class="btn btn-secondary" style="flex: 1;">Create Sync Account</button>
+                    </div>
+                  </div>
+
+                  <!-- View 2: Login Form -->
+                  <div id="syncPanelLogin" style="display: none; flex-direction: column; gap: 12px; margin-top: 15px;">
+                    <div class="form-row">
+                      <label for="loginUsername">Interpreter ID</label>
+                      <input id="loginUsername" type="text" placeholder="e.g. AA123" style="width: 100%;" />
+                    </div>
+                    <div class="form-row">
+                      <label for="loginPassword">Password</label>
+                      <input id="loginPassword" type="password" placeholder="Password" style="width: 100%;" />
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                      <button id="btnSyncLogin" class="btn" style="flex: 2;">Log In</button>
+                      <button id="btnCancelLogin" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+                    </div>
+                    <div style="text-align: right; margin-top: 4px;">
+                      <a href="#" id="linkForgotPassword" style="font-size: 0.85em; color: var(--accent); text-decoration: none;">Forgot Password?</a>
+                    </div>
+                  </div>
+
+                  <!-- View 4: Forgot Password Form -->
+                  <div id="syncPanelRecover" style="display: none; flex-direction: column; gap: 12px; margin-top: 15px;">
+                    <div style="font-size: 0.9em; color: var(--text-alt); margin-bottom: 5px;">
+                      Enter your Interpreter ID or email, and we will send a password reset link to your email.
+                    </div>
+                    <div class="form-row">
+                      <label for="recoverInput">Interpreter ID or Email Address</label>
+                      <input id="recoverInput" type="text" placeholder="e.g. AA123 or name@example.com" style="width: 100%;" />
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                      <button id="btnSyncRecover" class="btn" style="flex: 2;">Send Reset Link</button>
+                      <button id="btnCancelRecover" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+                    </div>
+                  </div>
+
+                  <!-- View 3: Register Form -->
+                  <div id="syncPanelRegister" style="display: none; flex-direction: column; gap: 12px; margin-top: 15px;">
+                    <div class="form-row" id="profileExtractionAlert" style="font-size: 0.85em; color: var(--accent); display: none; padding: 6px 10px; background: rgba(241, 86, 42, 0.1); border-radius: 8px;">
+                      Linked GLOBO Profile detected: <strong id="extractedProfileName"></strong>
+                    </div>
+                    <div class="form-row">
+                      <label for="registerUsername">Interpreter ID</label>
+                      <input id="registerUsername" type="text" placeholder="Scraping GLOBO ID..." style="width: 100%;" disabled />
+                    </div>
+                    <div class="form-row">
+                      <label for="registerName">Full Name</label>
+                      <input id="registerName" type="text" placeholder="Scraping GLOBO Name..." style="width: 100%;" disabled />
+                    </div>
+                    <div class="form-row">
+                      <label for="registerEmail">Email Address</label>
+                      <input id="registerEmail" type="email" placeholder="email@example.com" style="width: 100%;" />
+                    </div>
+                    <div class="form-row">
+                      <label for="registerPassword">Password</label>
+                      <input id="registerPassword" type="password" placeholder="Create Password (min 6 chars)" style="width: 100%;" />
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 5px;">
+                      <button id="btnSyncRegister" class="btn" style="flex: 2;">Register</button>
+                      <button id="btnCancelRegister" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+                    </div>
+                  </div>
+
+                  <!-- Status Notification (Shared) -->
+                  <div id="syncError" style="color: var(--danger); font-size: 0.85em; display: none; margin-top: 10px;"></div>
+                  <div id="syncSuccess" style="color: #2ec4b6; font-size: 0.85em; display: none; margin-top: 10px;"></div>
+
+                  <!-- Signed In Controls -->
+                  <div id="syncSignedIn" style="display: none; flex-direction: column; gap: 15px; margin-top: 15px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <div style="width: 10px; height: 10px; border-radius: 50%; background: #2ec4b6;" class="pulse"></div>
+                      <span style="font-weight: 500;">Connected as <span id="syncUserText" style="color: var(--accent);"></span></span>
+                    </div>
+                    <div style="font-size: 0.9em; color: var(--text-alt);">
+                      Last synchronized: <span id="syncTimestamp">Never</span>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                      <button id="btnSyncNow" class="btn" style="flex: 1;">Sync Now</button>
+                      <button id="btnSyncLogout" class="btn btn-danger" style="width: 100px;">Log Out</button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- Standing History Log Card -->
+              <div class="card" style="margin-top: 25px;">
+                <h2>Standing History Log</h2>
+                <div style="font-size: 0.9em; color: var(--text-alt); margin-bottom: 15px;">
+                  Tracks changes to your GLOBO account standing variables recorded upon session initialization.
+                </div>
+                <div style="overflow-x: auto;">
+                  <table class="records-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                      <tr style="border-bottom: 2px solid var(--stroke); color: var(--text-alt);">
+                        <th style="padding: 12px 8px;">Date</th>
+                        <th style="padding: 12px 8px;">Probation Status</th>
+                        <th style="padding: 12px 8px;">Priority</th>
+                        <th style="padding: 12px 8px; text-align: center;">Missed Audio</th>
+                        <th style="padding: 12px 8px; text-align: center;">Missed Video</th>
+                        <th style="padding: 12px 8px; text-align: center;">Line Errors</th>
+                      </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                      <tr>
+                        <td colspan="6" style="padding: 20px; text-align: center; color: var(--text-alt);">No account standing history logged yet.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="records/records.js"></script>
+  </body>
+</html>

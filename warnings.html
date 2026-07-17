@@ -3,11 +3,48 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Shifts</title>
+    <title>Warnings Log</title>
     <link rel="stylesheet" href="records/records.css" />
     <script src="records/theme-init.js"></script>
+    <style>
+      .badge-warning {
+        background-color: #fff3cd !important;
+        color: #856404 !important;
+        border: 1px solid #ffeeba !important;
+      }
+      .badge-error {
+        background-color: #f8d7da !important;
+        color: #721c24 !important;
+        border: 1px solid #f5c6cb !important;
+      }
+      .badge-info {
+        background-color: #d1ecf1 !important;
+        color: #0c5460 !important;
+        border: 1px solid #bee5eb !important;
+      }
+      html.dark-mode .badge-warning {
+        background-color: #664d03 !important;
+        color: #ffda6a !important;
+        border: 1px solid #4d3a02 !important;
+      }
+      html.dark-mode .badge-error {
+        background-color: #58151c !important;
+        color: #ea868f !important;
+        border: 1px solid #410f14 !important;
+      }
+      html.dark-mode .badge-info {
+        background-color: #0c363c !important;
+        color: #8be0ee !important;
+        border: 1px solid #082529 !important;
+      }
+      .type-badge {
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        padding: 4px 8px !important;
+      }
+    </style>
   </head>
-  <body class="shifts-page">
+  <body class="warnings-page">
     <div class="shell">
       <aside class="rail">
         <div class="rail-logo" aria-hidden="true">CT</div>
@@ -20,14 +57,14 @@
             <line x1="10" y1="9" x2="8" y2="9" />
           </svg>
         </button>
-        <button class="tab rail-btn" data-tab="warningsTab" data-href="warnings.html" aria-label="Warnings">
+        <button class="tab rail-btn active" data-tab="warningsTab" data-href="warnings.html" aria-label="Warnings">
           <svg style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24" aria-hidden="true">
             <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
         </button>
-        <button class="tab rail-btn active" data-tab="shiftsTab" data-href="shifts.html" aria-label="Shifts">
+        <button class="tab rail-btn" data-tab="shiftsTab" data-href="shifts.html" aria-label="Shifts">
           <svg style="fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;" viewBox="0 0 24 24" aria-hidden="true">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
             <line x1="16" y1="2" x2="16" y2="6" />
@@ -50,79 +87,36 @@
       </aside>
       <div class="page">
         <div class="app">
-      <header>
-        <h1>Shifts</h1>
-      </header>
-
-      <div class="tab-panels">
-
-
-        <section id="shiftsTab" class="panel active">
-          <div class="card weekly-card">
-            <div class="week-header">
-              <h2>Weekly Shifts</h2>
-              <div class="week-nav">
-                <button id="prevWeek" class="nav-btn">◀</button>
-                <span id="currentWeekLabel"></span>
-                <button id="nextWeek" class="nav-btn">▶</button>
-                <button id="thisWeek" class="nav-btn">This Week</button>
-                <button id="syncDeputyBtn" class="btn" style="padding: 6px 12px; margin-left: 8px;">Sync Deputy</button>
+          <header>
+            <h1>Warnings & Errors Log</h1>
+            <div class="header-right">
+              <div id="warningCount" class="muted">0 logs</div>
+              <div class="month-nav">
+                <button id="prevMonth" class="nav-btn">◀</button>
+                <span id="currentMonthLabel"></span>
+                <button id="nextMonth" class="nav-btn">▶</button>
+              </div>
+              <div class="header-actions">
+                <button id="clearWarnings" class="btn ghost">Clear Logs</button>
               </div>
             </div>
-            <div id="weeklyGrid" class="week-grid"></div>
-            <div class="form-actions">
-              <button id="saveWeekly">Save Week</button>
-            </div>
+          </header>
+
+          <div class="tab-panels">
+            <section id="warningsTab" class="panel active records-layout" style="grid-template-columns: 1fr;">
+              <section class="main">
+                <div class="records-list">
+                  <div id="warningsLoading" class="empty">Loading logs...</div>
+                  <div id="warningsEmpty" class="empty" style="display: none;">No warnings or errors logged yet.</div>
+                  <div id="warningsContainer" class="records"></div>
+                </div>
+              </section>
+            </section>
           </div>
-          <div class="card shifts-card">
-            <h2>Shifts</h2>
-            <div id="shiftsList"></div>
-          </div>
-        </section>
-      </div>
-      
-      <!-- Sync Preview Modal -->
-      <div id="syncPreviewModal" class="modal-overlay hidden">
-        <div class="modal-card">
-          <h2>Deputy Sync Preview</h2>
-          <p class="muted">Review the shifts imported from Deputy. You can edit them below.</p>
-          <div id="syncPreviewContent" class="sync-preview-content"></div>
-          <div class="form-actions">
-            <button id="cancelSync" class="btn ghost">Cancel</button>
-            <button id="approveSync" class="btn">Approve & Save</button>
-          </div>
-        </div>
-      </div>
-      <!-- Edit Shift Modal -->
-      <div id="editShiftModal" class="modal-overlay hidden">
-        <div class="modal-card" style="max-width: 400px;">
-          <h2>Edit Shift</h2>
-          <div class="form-row" style="margin-top: 16px;">
-            <label>Date</label>
-            <input type="text" id="editShiftDate" disabled style="background: #f4efe6;" />
-          </div>
-          <div class="form-row">
-            <label>Start Time</label>
-            <input type="time" id="editShiftStart" disabled />
-          </div>
-          <div class="form-row">
-            <label>End Time</label>
-            <input type="time" id="editShiftEnd" disabled />
-          </div>
-          <div class="form-actions" style="margin-top: 24px; justify-content: space-between;">
-            <button id="editShiftDelete" class="btn ghost" style="color: #d32f2f; border-color: #f8bbd0;">Delete</button>
-            <div style="display: flex; gap: 8px;">
-              <button id="editShiftCancel" class="btn ghost">Cancel</button>
-              <button id="editShiftToggle" class="btn">Edit</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      
         </div>
       </div>
     </div>
 
-    <script src="records/records.js"></script>
+    <script src="records/warnings.js"></script>
   </body>
 </html>

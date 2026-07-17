@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Globo Call Tracker",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "description": "Auto-tracks Globo calls and logs billable minutes.",
   "permissions": ["storage", "tabs", "alarms", "unlimitedStorage"],
   "host_permissions": [
     "https://*.globohq.com/*",
     "https://globohq.com/*",
-    "https://*.deputy.com/*"
+    "https://*.deputy.com/*",
+    "https://jxwuymjdoltyunvjjbgg.supabase.co/*"
   ],
   "action": {
     "default_title": "Call Tracker",
